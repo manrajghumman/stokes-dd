@@ -38,11 +38,11 @@ main(int argc, char *argv[])
       // mesh_m2d[2] = {3, 3};
       // mesh_m2d[3] = {2, 2};//this one
       // mesh_m2d[4] = {1, 1};
-      mesh_m2d[0] = {6, 6};
-      mesh_m2d[1] = {6, 6};
-      mesh_m2d[2] = {6, 6};
-      mesh_m2d[3] = {6, 6};
-      mesh_m2d[4] = {3, 3};
+      mesh_m2d[0] = {1, 3};
+      mesh_m2d[1] = {1, 3};
+      mesh_m2d[2] = {1, 3};
+      mesh_m2d[3] = {2, 2};
+      mesh_m2d[4] = {2, 2};
       mesh_m2d[5] = {2, 2};
       mesh_m2d[6] = {2, 2};
       mesh_m2d[7] = {2, 2};
@@ -61,7 +61,7 @@ main(int argc, char *argv[])
       std::vector<unsigned int> boundary_m2d(4);
       // enter 0 for dirichlet and 1 for neumann boundary
       //{bottom, right, top, left}
-      boundary_m2d.assign({1, 0, 0, 0}); 
+      boundary_m2d.assign({0, 1, 0, 1}); 
       
       std::vector<unsigned int> boundary_m3d(6);
       boundary_m3d.assign({0, 0, 0, 0, 0, 0});
@@ -74,8 +74,8 @@ main(int argc, char *argv[])
       std::string name3("M2");
       std::string name4("M3");
 
-      // no_mortars.run(5, boundary_m2d, mesh_m2d, 1.e-10, name1, 500, 11);
-      mortars.run(5, boundary_m2d, mesh_m2d, 1.e-14, name1, 500, 11);
+      no_mortars.run(5, boundary_m2d, mesh_m2d, 1.e-14, name1, 800, 11);
+      // mortars.run(5, boundary_m2d, mesh_m2d, 1.e-10, name1, 500, 11);
     }
 
   catch (std::exception &exc)

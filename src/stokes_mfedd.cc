@@ -175,34 +175,34 @@ namespace dd_stokes
       dof_handler_mortar.distribute_dofs(fe_mortar);
 
     
-    {
-      constraints.clear();
+    // {
+    //   constraints.clear();
 
-      const FEValuesExtractors::Vector velocities(0);
-      const FEValuesExtractors::Scalar pressure(dim);
-      DoFTools::make_hanging_node_constraints(dof_handler, constraints);
-      VectorTools::interpolate_boundary_values(dof_handler,
-                                               0,
-                                               BoundaryValues<dim>(),
-                                               constraints,
-                                               fe.component_mask(velocities));// distributing velocity constraints eg dirichlet values
-    }
-    constraints.close();
+    //   const FEValuesExtractors::Vector velocities(0);
+    //   const FEValuesExtractors::Scalar pressure(dim);
+    //   DoFTools::make_hanging_node_constraints(dof_handler, constraints);
+    //   VectorTools::interpolate_boundary_values(dof_handler,
+    //                                            0,
+    //                                            BoundaryValues<dim>(),
+    //                                            constraints,
+    //                                            fe.component_mask(velocities));// distributing velocity constraints eg dirichlet values
+    // }
+    // constraints.close();
 
 
-    {
-      constraints_star.clear();
+    // {
+    //   constraints_star.clear();
 
-      const FEValuesExtractors::Vector velocities(0);
-      const FEValuesExtractors::Scalar pressure(dim);
-      DoFTools::make_hanging_node_constraints(dof_handler, constraints_star);
-      VectorTools::interpolate_boundary_values(dof_handler,
-                                               0,
-                                               Functions::ZeroFunction<dim>(fe.n_components()),
-                                               constraints_star,
-                                               fe.component_mask(velocities));// distributing velocity constraints eg dirichlet values
-    }
-    constraints_star.close();
+    //   const FEValuesExtractors::Vector velocities(0);
+    //   const FEValuesExtractors::Scalar pressure(dim);
+    //   DoFTools::make_hanging_node_constraints(dof_handler, constraints_star);
+    //   VectorTools::interpolate_boundary_values(dof_handler,
+    //                                            0,
+    //                                            Functions::ZeroFunction<dim>(fe.n_components()),
+    //                                            constraints_star,
+    //                                            fe.component_mask(velocities));// distributing velocity constraints eg dirichlet values
+    // }
+    // constraints_star.close();
     
 
     std::vector<types::global_dof_index> dofs_per_component =
@@ -347,6 +347,7 @@ namespace dd_stokes
     
     system_matrix         = 0;
     system_rhs_bar_stokes = 0;
+    const double gamma    = 100;
 
     QGauss<dim> quadrature_formula(degree + 2);
     QGauss<dim - 1> face_quadrature_formula(degree + 2);
@@ -358,7 +359,7 @@ namespace dd_stokes
     FEFaceValues<dim> fe_face_values(fe,
                                      face_quadrature_formula,
                                      update_values | update_quadrature_points |
-                                       update_normal_vectors |
+                                       update_normal_vectors | update_gradients |
                                        update_JxW_values);
 
     const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
@@ -380,6 +381,7 @@ namespace dd_stokes
     const RightHandSideG<dim>    right_hand_side_g;
     std::vector<Tensor<1, dim>> rhs_f_values(n_q_points, Tensor<1, dim>());
     StressTensor_Exact<dim> stress_tensor;
+    BoundaryValues<dim> boundary_values;
 
     std::vector<double> rhs_g_values(n_q_points);
     std::vector<Tensor<2,dim>> stress_tensor_values(n_face_q_points, Tensor<2,dim>());
@@ -389,6 +391,7 @@ namespace dd_stokes
     
 
     std::vector<SymmetricTensor<2, dim>> symgrad_phi_u(dofs_per_cell);
+    std::vector<Tensor<2, dim>>          grad_phi_u(dofs_per_cell);
     std::vector<double>                  div_phi_u(dofs_per_cell);
     std::vector<Tensor<1, dim>>          phi_u(dofs_per_cell);
     std::vector<double>                  phi_p(dofs_per_cell);
@@ -398,68 +401,146 @@ namespace dd_stokes
         fe_values.reinit(cell);
         local_matrix                = 0;
         local_rhs                   = 0;
+        double h_K                  = cell->diameter(); // std::pow(2, 0.5);      
 
         right_hand_side.value_list(fe_values.get_quadrature_points(),
                                    rhs_f_values);
         right_hand_side_g.value_list(fe_values.get_quadrature_points(),
-                                   rhs_g_values);                                             
+                                   rhs_g_values);                                       
 
         for (unsigned int q = 0; q < n_q_points; ++q)
-          {
-            for (unsigned int k = 0; k < dofs_per_cell; ++k)
-              {
-                symgrad_phi_u[k] =
-                  fe_values[velocities].symmetric_gradient(k, q);
-                div_phi_u[k] = fe_values[velocities].divergence(k, q);
-                phi_u[k]     = fe_values[velocities].value(k, q);
-                phi_p[k]     = fe_values[pressure].value(k, q);
-              }
+        {
+          for (unsigned int k = 0; k < dofs_per_cell; ++k)
+            { //compute at one place decrease computations
+              symgrad_phi_u[k] =
+                fe_values[velocities].symmetric_gradient(k, q);
+              div_phi_u[k] = fe_values[velocities].divergence(k, q);
+              phi_u[k]     = fe_values[velocities].value(k, q);
+              phi_p[k]     = fe_values[pressure].value(k, q);
+            }
 
-            for (unsigned int i = 0; i < dofs_per_cell; ++i)
-              {
-                for (unsigned int j = 0; j <= i; ++j)
-                  {
-                    local_matrix(i, j) +=
-                      (2 * (symgrad_phi_u[i] * symgrad_phi_u[j]) // (1)
-                       - div_phi_u[i] * phi_p[j]                 // (2)
-                       - phi_p[i] * div_phi_u[j])                // (3)
-                      * fe_values.JxW(q);                        // * dx
-                  }
-                local_rhs(i) += phi_u[i]            // phi_u_i(x_q)
-                                * rhs_f_values[q]     // * f(x_q)
-                                * fe_values.JxW(q)
-                                +phi_p[i]            // phi_p_i(x_q)
-                                * rhs_g_values[q]     // * f(x_q)
-                                * fe_values.JxW(q); // * dx
-              }
-          }
-        // Entering Neumann Condition
-        for (const auto &face : cell->face_iterators())
-          if (face->at_boundary() && (face->boundary_id() == 7))
+          for (unsigned int i = 0; i < dofs_per_cell; ++i) // for test functions
             {
-              fe_face_values.reinit(cell, face);
+              for (unsigned int j = 0; j <= i; ++j)
+                {
+                  local_matrix(i, j) +=
+                    (2 * (symgrad_phi_u[j] * symgrad_phi_u[i]) // 2* (D(u):D(v))
+                    - phi_p[j] * div_phi_u[i]                 // - (p, div(v))
+                    - div_phi_u[j] * phi_p[i])                // - (div(u), w)
+                    * fe_values.JxW(q);                        // dx
+                }
+              local_rhs(i) += phi_u[i]            
+                              * rhs_f_values[q]     // (F, v)
+                              * fe_values.JxW(q)
+                              -phi_p[i]            
+                              * rhs_g_values[q]     // -(G, w)
+                              * fe_values.JxW(q); // dx
+            }
+        }
+        // // Entering Neumann Condition
+        // for (const auto &face : cell->face_iterators())
+        //   if (face->at_boundary() && (face->boundary_id() == 7))
+        //     {
+        //       fe_face_values.reinit(cell, face);
+        //       stress_tensor.value_list(fe_face_values.get_quadrature_points(), 
+        //                           stress_tensor_values);  
+
+        //       for (unsigned int q_point = 0; q_point < n_face_q_points;
+        //            ++q_point)
+        //         {
+        //           for (unsigned int k = 0; k < dofs_per_cell; ++k)
+        //           {
+        //             phi_u[k]     = fe_face_values[velocities].value(k, q_point);
+        //           }
+        //           const Tensor<1,2> neumann_value =
+        //             (stress_tensor_values[q_point] *
+        //              fe_face_values.normal_vector(q_point));
+
+        //           for (unsigned int i = 0; i < dofs_per_cell; ++i)
+        //             local_rhs(i) +=
+        //               (phi_u[i] *                      // phi_i(x_q)
+        //                neumann_value) *                // g(x_q)
+        //                fe_face_values.JxW(q_point);    // dx
+        //         }
+        //     }
+        // // Ending Neumann Condition
+        
+        //Entering boundary integrals
+        for (const auto &face : cell->face_iterators())
+        {
+          if (face->at_boundary())
+          { 
+            fe_face_values.reinit(cell, face);
+            if (face->boundary_id() == 7) //Entering Neumann Condition
+            {
               stress_tensor.value_list(fe_face_values.get_quadrature_points(), 
                                   stress_tensor_values);  
-
               for (unsigned int q_point = 0; q_point < n_face_q_points;
                    ++q_point)
                 {
-                  for (unsigned int k = 0; k < dofs_per_cell; ++k)
+                  for (int k = 0; k < dofs_per_cell; ++k)
                   {
                     phi_u[k]     = fe_face_values[velocities].value(k, q_point);
                   }
-                  const Tensor<1,2> neumann_value =
+                  const Tensor<1,dim> neumann_value =
                     (stress_tensor_values[q_point] *
                      fe_face_values.normal_vector(q_point));
 
-                  for (unsigned int i = 0; i < dofs_per_cell; ++i)
+                  for (int i = 0; i < dofs_per_cell; ++i)
                     local_rhs(i) +=
-                      (phi_u[i] *                      // phi_i(x_q)
-                       neumann_value) *                // g(x_q)
+                      (phi_u[i] *                      
+                       neumann_value) *                // + (gn, v)
                        fe_face_values.JxW(q_point);    // dx
                 }
-            }
-        // Ending Neumann Condition
+            }//Ending Neumann Condition
+            if (face->boundary_id() == 0)//Entering Dirichlet Condition
+            {
+              for (unsigned int q = 0; q < n_face_q_points; ++q)
+              {
+                Tensor<1,dim> gd; 
+                Vector<double> tmp(dim);
+                boundary_values.vector_value(fe_face_values.get_quadrature_points()[q], tmp);
+                for (unsigned int i = 0; i < dim; ++i)
+                    gd[i] = tmp[i];
+                for (int k = 0; k < dofs_per_cell; ++k)
+                {
+                  symgrad_phi_u[k] =
+                    fe_face_values[velocities].symmetric_gradient(k, q);
+                  phi_u[k]     = fe_face_values[velocities].value(k, q);
+                  grad_phi_u[k]     = fe_face_values[velocities].gradient(k, q);
+                  phi_p[k]     = fe_face_values[pressure].value(k, q);
+                }
+                for (int i = 0; i < dofs_per_cell; ++i)
+                {
+                  for (int j = 0; j <= i; ++j)
+                  {
+                    local_matrix(i,j) += (-2 * (symgrad_phi_u[j] 
+                                        * fe_face_values.normal_vector(q))
+                                        * phi_u[i] // -2 <D(u).n, v>
+                                        -2 * phi_u[j]
+                                        * (symgrad_phi_u[i] 
+                                          * fe_face_values.normal_vector(q)) // -2 <u, D(v).n>
+                                          + gamma * phi_u[j]
+                                          * phi_u[i] / h_K // + gamma <u,v> / h_k
+                                          + phi_p[j]
+                                          * (fe_face_values.normal_vector(q)
+                                          * phi_u[i]) // + <p, v.n>
+                                          + phi_u[j] 
+                                          * fe_face_values.normal_vector(q)
+                                          * phi_p[i]) // - <u.n, w>
+                                          * fe_face_values.JxW(q);
+                  }
+                  local_rhs(i) += (-2 * gd * (symgrad_phi_u[i] 
+                                * fe_face_values.normal_vector(q)) // -2 <gd, D(v).n>
+                                + gamma * gd * phi_u [i] / h_K // gamma * <gd, v>/h
+                                + gd * fe_face_values.normal_vector(q)
+                                * phi_p[i]) // - <gd.n, w>
+                                * fe_face_values.JxW(q);
+                }
+              }
+            }//Ending Dirichlet Condition
+          }
+        }
 
 
         //Matrix is symmetric copying from other half
@@ -468,15 +549,26 @@ namespace dd_stokes
               local_matrix(i, j) = local_matrix(j, i);
 
         cell->get_dof_indices(local_dof_indices);
-        constraints.distribute_local_to_global(local_matrix,
-                                               local_rhs,
-                                               local_dof_indices,
-                                               system_matrix,
-                                               system_rhs_bar_stokes);
-        constraints_star.distribute_local_to_global(local_matrix,
-                                                    local_dof_indices,
-                                                    system_matrix_star);
+        for (unsigned int i = 0; i < dofs_per_cell; ++i)
+          for (unsigned int j = 0; j < dofs_per_cell; ++j)
+            system_matrix.add(local_dof_indices[i],
+                              local_dof_indices[j],
+                              local_matrix(i, j));
+        for (unsigned int i = 0; i < dofs_per_cell; ++i)
+          system_rhs_bar_stokes(local_dof_indices[i]) += local_rhs(i);
+        // constraints.distribute_local_to_global(local_matrix,
+        //                                        local_rhs,
+        //                                        local_dof_indices,
+        //                                        system_matrix,
+        //                                        system_rhs_bar_stokes);
+        // constraints_star.distribute_local_to_global(local_matrix,
+        //                                             local_dof_indices,
+        //                                             system_matrix_star);
       }
+      // system_matrix_star.copy_from(system_matrix);
+      // system_matrix.m()
+      // system_matrix.print(std::cout);
+      // system_rhs_bar_stokes.print(std::cout);
   }
 
   
@@ -629,7 +721,6 @@ namespace dd_stokes
 
     for (const auto &cell : dof_handler.active_cell_iterators())
       {
-        // local_preconditioner_matrix = 0;
         local_rhs                   = 0;
         cell->get_dof_indices(local_dof_indices);
         for (unsigned int face_n = 0;face_n < n_faces_per_cell;++face_n)
@@ -668,10 +759,17 @@ namespace dd_stokes
                 }
               }  
           }
-        
-        constraints_star.distribute_local_to_global(local_rhs,
-                                                    local_dof_indices,
-                                                    system_rhs_star_stokes);
+        for (unsigned int i = 0; i < dofs_per_cell; ++i)
+          system_rhs_star_stokes(local_dof_indices[i]) += local_rhs(i);
+        // for (unsigned int i = 0; i < dofs_per_cell; ++i)
+        //   for (unsigned int side = 0; side < n_faces_per_cell; ++side){
+        //     if (std::find (interface_dofs[side].begin(), interface_dofs[side].end(), 
+        //     local_dof_indices[i]) != interface_dofs[side].end())//enters this statement if local_dof_indices[i] belongs to interface_dofs[side]
+        //       system_rhs_star_stokes(local_dof_indices[i]) += local_rhs(i);
+        //   } 
+        // constraints_star.distribute_local_to_global(local_rhs,
+        //                                             local_dof_indices,
+        //                                             system_rhs_star_stokes);
       }
   }
 
@@ -684,7 +782,8 @@ namespace dd_stokes
     {
       A_direct.initialize (system_matrix);
       A_direct.vmult(solution_bar_stokes, system_rhs_bar_stokes);
-      constraints.distribute (solution_bar_stokes);
+      // solution_bar_stokes.print(std::cout);
+      // constraints.distribute (solution_bar_stokes);
       // B_direct.initialize (system_matrix_star);
     }
   }
@@ -696,7 +795,7 @@ namespace dd_stokes
       TimerOutput::Scope t(computing_timer, "Solve star");
     {
       A_direct.vmult (solution_star_stokes, system_rhs_star_stokes);
-      constraints_star.distribute(solution_star_stokes);
+      // constraints_star.distribute(solution_star_stokes);
     }
   }
 
@@ -2289,7 +2388,7 @@ namespace dd_stokes
     }
 
     // convergence_table.add_value("cycle", cycle);
-    // convergence_table.add_value("cells", n_active_cells);
+    convergence_table.add_value("cells", n_active_cells);
     convergence_table.add_value("h", "1/"+Utilities::int_to_string(n));
     convergence_table.add_value("dofs", n_dofs);
     convergence_table.add_value("dofs_m", mortar_dofs);
@@ -2710,7 +2809,7 @@ namespace dd_stokes
     // convergence_table.set_scientific("ux_H1", true);
     // convergence_table.set_scientific("uy_H1", true);
 
-    // convergence_table.set_tex_caption("cells", "\\# cells");
+    convergence_table.set_tex_caption("cells", "\\# cells");
     convergence_table.set_tex_caption("h", "\\ h");
     convergence_table.set_tex_caption("dofs", "\\# dofs");
     convergence_table.set_tex_caption("cg_iter", "cg iter");
@@ -2799,6 +2898,7 @@ namespace dd_stokes
     convergence_table_total.set_scientific("u_L2", true);
     convergence_table_total.set_scientific("p_L2", true);
 
+    // convergence_table_total.set_tex_caption("cells", "\\# cells");
     convergence_table_total.set_tex_caption("h", "\\ h");
     convergence_table_total.set_tex_caption("dofs", "\\# dofs");
     convergence_table_total.set_tex_caption("cg_iter", "cg iter");

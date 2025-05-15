@@ -47,10 +47,6 @@ namespace dd_stokes
       {
         return std::sin(p[1]);
       }
-    if (component == 2)//i.e. pressure 
-      {
-        return std::cos(p[0]*p[1]);
-      }
 
     return 0;
   }
@@ -60,7 +56,7 @@ namespace dd_stokes
   void BoundaryValues<dim>::vector_value(const Point<dim> &p,
                                          Vector<double> &  values) const
   {
-    for (unsigned int c = 0; c < this->n_components; ++c)
+    for (unsigned int c = 0; c < this->n_components-1; ++c)
       values(c) = BoundaryValues<dim>::value(p, c);
   }
 
@@ -232,7 +228,7 @@ template <int dim>
         // value = f(x) at x = 'p'
     {
       double rhs_value;
-      rhs_value = -(std::cos (p[0])+std::cos (p[1]));
+      rhs_value = (std::cos (p[0])+std::cos (p[1]));
       return rhs_value;
     }
 
