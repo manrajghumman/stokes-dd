@@ -349,8 +349,8 @@ namespace dd_stokes
     system_rhs_bar_stokes = 0;
     const double gamma    = 100;
 
-    QGauss<dim> quadrature_formula(degree + 2);
-    QGauss<dim - 1> face_quadrature_formula(degree + 2);
+    QGauss<dim> quadrature_formula(degree+2);
+    QGauss<dim - 1> face_quadrature_formula(degree+2);
 
     FEValues<dim> fe_values(fe,
                             quadrature_formula,
@@ -798,446 +798,6 @@ namespace dd_stokes
       // constraints_star.distribute(solution_star_stokes);
     }
   }
-
-//     //finding the l2 norm of a std::vector<double> vector
-//   template <int dim>
-//   double
-//   MixedStokesProblemDD<dim>::vect_norm(std::vector<double> v){
-//   	double result = 0;
-//   	for(int i=0; i<v.size(); ++i){
-//   		result+= v[i]*v[i];
-//   	}
-//   	return sqrt(result);
-
-//   }
-//   //Calculating the given rotation matrix
-//   template <int dim>
-//   void
-//   MixedStokesProblemDD<dim>::givens_rotation(double v1, double v2, double &cs, double &sn){
-
-//   	if(abs(v1)<1e-15){
-//   		cs=0;
-//   		sn=1;
-//   	}
-//   	else{
-//   		double t = sqrt(v1*v1 + v2*v2);
-//   		cs = abs(v1)/t;
-//   		sn=cs*v2/v1;
-//   	}
-
-
-//   }
-
-//   //Applying givens rotation to H column
-//   template <int dim>
-//   void
-//   MixedStokesProblemDD<dim>::apply_givens_rotation(std::vector<double> &h, std::vector<double> &cs, std::vector<double> &sn,
-//   							unsigned int k){
-//   	assert(h.size()>k+1); //size should be k+2
-//   	for( int i=0; i<k-1; ++i){
-//   		double temp= cs[i]* h[i]+ sn[i]*h[i+1];
-//   		h[i+1] = -sn[i]*h[i] + cs[i]*h[i+1];
-//   		h[i] = temp;
-//   	}
-//   	assert(h.size()==k+2);
-//   	//update the next sin cos values for rotation
-//   	double cs_k=0, sn_k=0;
-//   	 givens_rotation(h[k],h[k+1],cs_k,sn_k);
-
-//   	 //Eliminate H(i+1,i)
-//   	 h[k] = cs_k*h[k] + sn_k*h[k+1];
-//   	 h[k+1] = 0.0;
-
-//   	 //adding cs_k and sn_k as cs(k) and sn(k)
-//   	 cs.push_back(cs_k);
-//   	 sn.push_back(sn_k);
-
-
-//   }
-
-
-//   template <int dim>
-//   void
-//   MixedStokesProblemDD<dim>::back_solve(std::vector<std::vector<double>> H, std::vector<double> beta, std::vector<double> &y){
-//   	 int k = beta.size();
-//   	y.resize(k,0);
-//   	for( int i =k-1; i>=0;i-- ){
-//   		y[i]= beta[i]/H[i][i];
-//   		for( int j = i+1; j<=k-1;j++){
-//   			y[i]-= H[j][i]*y[j]/H[i][i];
-//   		}
-//   	}
-
-//   }
-
-
-// //actual GMRES function.
-//   template <int dim>
-//     void
-//     MixedStokesProblemDD<dim>::local_gmres(const unsigned int &maxiter)
-//     {
-//       TimerOutput::Scope t(computing_timer, "Local CG");
-
-//       const unsigned int this_mpi =
-//         Utilities::MPI::this_mpi_process(mpi_communicator);
-//       const unsigned int n_processes =
-//         Utilities::MPI::n_mpi_processes(mpi_communicator);
-//       const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
-
-//       std::vector<std::vector<double>> interface_data_receive(n_faces_per_cell);
-//       std::vector<std::vector<double>> interface_data_send(n_faces_per_cell);
-//       std::vector<std::vector<double>> interface_data(n_faces_per_cell);
-//       std::vector<std::vector<double>> lambda(n_faces_per_cell);
-
-
-//       for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-//         if (neighbors[side] >= 0)
-//           {
-//                 interface_data_receive[side].resize(interface_dofs[side].size(),
-//                                                     0);
-//                 interface_data_send[side].resize(interface_dofs[side].size(), 0);
-//                 interface_data[side].resize(interface_dofs[side].size(), 0);
-
-//           }
-
-//       // Extra for projections from mortar to fine grid and RHS assembly
-//       Quadrature<dim - 1> quad;
-//       quad = QGauss<dim - 1>(qdegree);
-
-
-//       dealii::AffineConstraints<double>   constraints;
-//       FEFaceValues<dim> fe_face_values(fe,
-//                                        quad,
-//                                        update_values | update_normal_vectors |
-//                                          update_quadrature_points |
-//                                          update_JxW_values);
-
-//       //GMRES structures and parameters
-//       std::vector<std::vector<double>>	sn_side(n_faces_per_cell);
-//       std::vector<std::vector<double>>	cs_side(n_faces_per_cell);
-//       std::vector<std::vector<double>>	e1_side(n_faces_per_cell);
-//       std::vector<std::vector<std::vector<double>>>	H_side(n_faces_per_cell);
-//       std::vector<double> error_iter_side(n_faces_per_cell); //saves error in each iteration
-//       std::vector<double> e_all_iter; //error will be saved here after each iteration
-//       std::vector<std::vector<double>>	Beta_side(n_faces_per_cell); //beta for each side
-//       double combined_error_iter =0; //sum of error_iter_side
-      
-//       //Size of sn, cs_side, e1, H is set to be 1. we will later push back to increase the size.
-//       for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-//         if (neighbors[side] >= 0)
-//           {
-//                 sn_side[side].resize(1,0);
-//                 cs_side[side].resize(1,0);
-//                 e1_side[side].resize(1,0);
-// //                H_side[side].resize(1);
-// //                H_side[side][0].resize(1,0);
-//                 error_iter_side[side] = 0;
-// //                e_side[side].resize(1,0);
-//                 Beta_side[side].resize(1,0);
-
-//           }
-
-
-
-//       // CG structures and parameters
-//       std::vector<double> alpha_side(n_faces_per_cell, 0),
-//         alpha_side_d(n_faces_per_cell, 0), beta_side(n_faces_per_cell, 0),
-//         beta_side_d(n_faces_per_cell, 0); //to be deleted
-//       std::vector<double> alpha(2, 0), beta(2, 0); //to be deleted
-
-//       std::vector<std::vector<double>> r(n_faces_per_cell), p(n_faces_per_cell); //to be deleted probably: p?
-//       std::vector<double> r_norm_side(n_faces_per_cell,0);
-//       std::vector<std::vector<std::vector<double>>>	Q_side(n_faces_per_cell) ;
-//       std::vector<std::vector<double>>  Ap(n_faces_per_cell);
-
-//       solve_bar();
-
-//       // interface_fe_function.reinit(solution_bar_stokes);
-
-      
-//       double l0 = 0.0;
-//       // CG with rhs being 0 and initial guess lambda = 0
-//       for (unsigned side = 0; side < n_faces_per_cell; ++side)
-//         if (neighbors[side] >= 0)
-//           {
-//             // Something will be here to initialize lambda correctly, right now it
-//             // is just zero
-//             Ap[side].resize(interface_dofs[side].size(), 0);
-//             lambda[side].resize(interface_dofs[side].size(), 0);
-
-//             pcout << "did we get here?" << std::endl;
-
-//             Q_side[side][0].resize(interface_dofs[side].size());
-            
-//             r[side].resize(interface_dofs[side].size(), 0);
-//             std::vector<double> r_receive_buffer(r[side].size());
-            
-
-//             // Right now it is effectively solution_bar - A\lambda (0)
-//               for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-//                 r[side][i] = get_normal_direction(side) *
-//                                solution_bar_stokes[interface_dofs[side][i]] -
-//                              get_normal_direction(side) * l0;
-            
-              
-
-//             MPI_Send(&r[side][0],
-//                      r[side].size(),
-//                      MPI_DOUBLE,
-//                      neighbors[side],
-//                      this_mpi,
-//                      mpi_communicator);
-//             MPI_Recv(&r_receive_buffer[0],
-//                      r_receive_buffer.size(),
-//                      MPI_DOUBLE,
-//                      neighbors[side],
-//                      neighbors[side],
-//                      mpi_communicator,
-//                      &mpi_status);
-
-//             for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-//               {
-//                 r[side][i] += r_receive_buffer[i];
-//               }
-//             r_norm_side[side] = vect_norm(r[side]);
-//             //Making the first element of matrix Q[side] same as r_side/norm(r_side)
-//             for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-//                           {
-//             	Q_side[side][0][i]= r[side][i]/r_norm_side[side] ;
-//                           }
-//             Beta_side[side][0] = r_norm_side[side];
-//             error_iter_side[side] = 1;
-
-
-//           }
-
-//       p = r;//to be deleted probably
-
-//       double normB    = 0;// to be deleted
-//       double normRold = 0;// to be deleted
-
-//       unsigned int k_counter = 0; //same as the count of the iteration
-//       while (k_counter < maxiter)
-//         {
-//           alpha[0] = 0.0; // to be deleted
-//           alpha[1] = 0.0; // to be deleted
-//           beta[0]  = 0.0; // to be deleted
-//           beta[1]  = 0.0; // to be deleted
-
-// //          k_counter++;
-
-//   //////------solving the  star problem to find AQ(k)---------------------
-
-//           //Performing the Arnoldi algorithm
-//           interface_data = Q_side[k_counter];
-
-//               for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-//                 for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-//                   interface_fe_function[side][interface_dofs[side][i]] =
-//                     interface_data[side][i];
-
-//               // interface_fe_function.block(1) = 0;
-//               assemble_rhs_star(fe_face_values);
-//               solve_star();
-
-
-//           gmres_iteration++;
-
-
-//           for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-//             if (neighbors[side] >= 0)
-//               {
-//                 alpha_side[side]   = 0;
-//                 alpha_side_d[side] = 0;
-//                 beta_side[side]    = 0;
-//                 beta_side_d[side]  = 0;
-
-//                 // Create vector of u\dot n to send
-//                   for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-//                     interface_data_send[side][i] =
-//                       get_normal_direction(side) *
-//                       solution_star_stokes[interface_dofs[side][i]];
-
-//                 MPI_Send(&interface_data_send[side][0],
-//                          interface_dofs[side].size(),
-//                          MPI_DOUBLE,
-//                          neighbors[side],
-//                          this_mpi,
-//                          mpi_communicator);
-//                 MPI_Recv(&interface_data_receive[side][0],
-//                          interface_dofs[side].size(),
-//                          MPI_DOUBLE,
-//                          neighbors[side],
-//                          neighbors[side],
-//                          mpi_communicator,
-//                          &mpi_status);
-
-//                 // Compute Ap and with it compute alpha
-//                 for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-//                   {
-//                     Ap[side][i] = -(interface_data_send[side][i] +
-//                                     interface_data_receive[side][i]);
-
-//                     alpha_side[side] += r[side][i] * r[side][i]; //to be deleted probably
-//                     alpha_side_d[side] += p[side][i] * Ap[side][i]; //to be deleted probably
-//                   }
-//                 //defing q and h to push_back to Q and H(Arnoldi alborithm)
-//                 assert(Ap[side].size()==Q_side[side][k_counter].size());
-//                 std::vector<double> q(Ap[side].size(),0);
-//                 q = Ap[side];
-//                 std::vector<double> h(k_counter+2,0);
-
-//                 //Arnoldi Algorithm
-//                 for(unsigned int i=0; i<=k_counter; ++i){
-//                 	for(unsigned int j=0; j<q.size();++j){
-//                 		h[i]=q[j]*Q_side[side][i][j];
-//                 		}
-//                 	for(unsigned int j=0;j<q.size();++j){
-//                 		q[j]-= h[i]*Q_side[side][i][j];
-//                 	}
-//                 }//end first loop for arnolod algorithm
-//                 h[k_counter+1]= vect_norm(q);
-//                 for(unsigned int i=0;i<q.size();++i)
-//                 	q[i]/=q[k_counter+1];
-//                 //---end of Arnoldi Algorithm
-
-//                 //Pushing back q and h to Q ang H as Q(k+1) and H(k)
-//                 Q_side[side].push_back(q);
-//                 H_side[side].push_back(h);
-
-//                 //Eliminating the last element in H ith row and updating the rotation matrix.
-//                 double cs_k= 0, sn_k=0;
-//                 apply_givens_rotation(H_side[side][k_counter],cs_side[side],sn_side[side],
-//                 						k_counter);
-//                 //Updating the residual vector
-//                 Beta_side[side].push_back(-sn_side[side][k_counter]*Beta_side[side][k_counter]);
-//                 Beta_side[side][k_counter]*=cs_side[side][k_counter];
-
-//                 //finding error and saving it
-//                 error_iter_side[side]= abs(Beta_side[side][k_counter+1])/r_norm_side[side];
-// //                e_side[side].push_back(error_iter_side[side]);
-
-
-
-
-//               }
-
-//           //////-----------end of loop over side, all parameters should be caluclated before this loop ends----------------------------------
-
-//           combined_error_iter=0;
-//           //combining error from corresponding to each side to one single error
-//           for(int side=0; side<n_faces_per_cell; ++side)
-//         	  combined_error_iter+= error_iter_side[side];
-
-//           //variable to receive combined_error_iter from all subdomains(processors)
-//           double error_buffer = 0;
-
-//           MPI_Allreduce(&combined_error_iter,
-//                             &error_buffer,
-//                             1,
-//                             MPI_DOUBLE,
-//                             MPI_SUM,
-//                             mpi_communicator);
-//           combined_error_iter = error_buffer;
-//           //saving the combined error at each iteration
-//           e_all_iter.push_back(error_buffer);
-
-
-
-
-//           // Fancy some lambdas, huh?
-//           std::for_each(alpha_side.begin(), alpha_side.end(), [&](double n) {
-//             alpha[0] += n;
-//           });
-//           std::for_each(alpha_side_d.begin(), alpha_side_d.end(), [&](double n) {
-//             alpha[1] += n;
-//           });
-//           std::vector<double> alpha_buffer(2, 0);
-
-//           MPI_Allreduce(&alpha[0],
-//                         &alpha_buffer[0],
-//                         2,
-//                         MPI_DOUBLE,
-//                         MPI_SUM,
-//                         mpi_communicator);
-
-//           alpha = alpha_buffer;
-
-//           if (gmres_iteration == 1)
-//             normB = alpha[0];
-
-//           normRold = alpha[0];
-
-//           //This is where we have to do x = x + Q(nxk)*y(kx1)
-// //
-//           for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-//             if (neighbors[side] >= 0)
-//               {
-//                 for (unsigned int i = 0; i < interface_data[side].size(); ++i)
-//                   {
-//                     lambda[side][i] += (alpha[0] * p[side][i]) / alpha[1];
-//                     r[side][i] -= (alpha[0] * Ap[side][i]) / alpha[1];
-//                   }
-
-//                 for (unsigned int i = 0; i < interface_data[side].size(); ++i)
-//                   beta_side[side] += r[side][i] * r[side][i];
-//               }
-
-//           pcout << "\r  ..." << gmres_iteration
-//                 << " iterations completed, (residual = " << combined_error_iter
-//                 << ")..." << std::flush;
-//           // Exit criterion
-//           if (combined_error_iter < tolerance)
-//             {
-//               pcout << "\n  GMRES converges in " << gmres_iteration << " iterations!\n";
-//               break;
-//             }
-//           else if(k_counter>maxiter-2)
-//         	  pcout << "\n  GMRES doesn't converge after  " << k_counter << " iterations!\n";
-
-//           std::for_each(beta_side.begin(), beta_side.end(), [&](double n) {
-//             beta[0] += n;
-//           });
-//           double beta_buffer = 0;
-
-//           MPI_Allreduce(
-//             &beta[0], &beta_buffer, 1, MPI_DOUBLE, MPI_SUM, mpi_communicator);
-
-//           beta[0] = beta_buffer;
-//           beta[1] = normRold;
-
-//           for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-//             {
-//               if (neighbors[side] >= 0)
-//                 for (unsigned int i = 0; i < interface_data[side].size(); ++i)
-//                   p[side][i] = r[side][i] + (beta[0] / beta[1]) * p[side][i];
-
-//               interface_data_receive[side].resize(interface_dofs[side].size(), 0);
-//               interface_data_send[side].resize(interface_dofs[side].size(), 0);
-
-//               Ap.resize(n_faces_per_cell);
-//             }
-//           k_counter++;
-//         }
-
-
-//           interface_data = lambda;
-//           for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-//             for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-//               interface_fe_function[side][interface_dofs[side][i]] =
-//                 interface_data[side][i];
-
-
-//       assemble_rhs_star(fe_face_values);
-//       solve_star();
-
-//       solution.reinit(solution_bar_stokes);
-//       solution = solution_bar_stokes;
-//       solution.sadd(1.0, solution_star_stokes);
-
-//       solution_star_stokes.sadd(1.0, solution_bar_stokes);
-//     }
-
 
 
   template <int dim>
@@ -2391,7 +1951,7 @@ namespace dd_stokes
     convergence_table.add_value("cells", n_active_cells);
     convergence_table.add_value("h", "1/"+Utilities::int_to_string(n));
     convergence_table.add_value("dofs", n_dofs);
-    convergence_table.add_value("dofs_m", mortar_dofs);
+    // convergence_table.add_value("dofs_m", mortar_dofs);
     // convergence_table.add_value("dofs_m", n_dofs_mortar);
     convergence_table.add_value("u_L2", u_l2_error);
     convergence_table.add_value("u_order", order_u);
@@ -2406,7 +1966,7 @@ namespace dd_stokes
 
     convergence_table_total.add_value("h", "1/"+Utilities::int_to_string(n));
     convergence_table_total.add_value("dofs", n_dofs);
-    convergence_table_total.add_value("dofs_m", mortar_dofs);
+    // convergence_table_total.add_value("dofs_m", mortar_dofs);
     convergence_table_total.add_value("u_L2", u_l2_error_total);
     convergence_table_total.add_value("u_order", order_u_total);
     convergence_table_total.add_value("p_L2", p_l2_error_total);
@@ -2758,8 +2318,8 @@ namespace dd_stokes
             pcout << "Starting CG iterations..."
                   << "\n";
            
-            local_cg(maxiter, cycle);
-            // local_gmres(maxiter);
+            // local_cg(maxiter, cycle);
+            local_gmres(maxiter);
             compute_errors(cycle, reps);
 
             MPI_Barrier(mpi_communicator);
@@ -2823,7 +2383,6 @@ namespace dd_stokes
 
     convergence_table.set_tex_format("h", "r");
     convergence_table.set_tex_format("dofs", "r");
-    convergence_table.set_tex_format("dofs_m", "r");
     // convergence_table.set_tex_format("dofs_m", "r");
 
     // convergence_table.add_column_to_supercolumn("cycle", "n   h");
@@ -2908,7 +2467,7 @@ namespace dd_stokes
 
     convergence_table_total.set_tex_format("h", "r");
     convergence_table_total.set_tex_format("dofs", "r");
-    convergence_table_total.set_tex_format("dofs_m", "r");
+    // convergence_table_total.set_tex_format("dofs_m", "r");
 
     
     convergence_table_total.write_text(std::cout);
