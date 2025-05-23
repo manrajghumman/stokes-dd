@@ -1188,7 +1188,7 @@ namespace dd_stokes
 
 
 
-
+        residual = combined_error_iter;
 
         pcout << "\r  ..." << gmres_iteration
               << " iterations completed, (residual = " << combined_error_iter
@@ -1203,7 +1203,7 @@ namespace dd_stokes
           pcout << "\n  GMRES doesn't converge after  " << k_counter << " iterations!\n";
 
 
-
+        
         //maxing interface_data_receive and send zero so it can be used is solving for Ap(or A*Q([k_counter]).
         for (unsigned int side = 0; side < n_faces_per_cell; ++side)
           {
@@ -1219,9 +1219,20 @@ namespace dd_stokes
 
     //Calculating the final result from H ,Q_side and Beta
     //Finding y which has size k_counter using back sove function
-    std::vector<double> y(k_counter+1,0);
-    assert(Beta.size()==k_counter+2);
-    back_solve(H,Beta,y);
+    std::vector<double> y;
+    if (k_counter < maxiter)
+    {
+      y.resize(k_counter+1,0);
+      assert(Beta.size()==k_counter+2); // gives error if exceed maxiter, do break if size is too much and going to exceed maxiter
+      back_solve(H,Beta,y);
+    }
+    else 
+    {
+     y.resize(k_counter,0);
+      assert(Beta.size()==k_counter+1); // gives error if exceed maxiter, do break if size is too much and going to exceed maxiter
+      back_solve(H,Beta,y);
+    }
+    
 
     //updating X(lambda) to get the final lambda value before solving the final star problem
     for (unsigned int side = 0; side < n_faces_per_cell; ++side)
