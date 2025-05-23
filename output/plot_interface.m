@@ -9,13 +9,13 @@ j = input(['Enter the edge number \n' ...
 % input_refinement
 k = input('Enter the refinement level \n( from 0 meaning no refinement and \n4 the highest refinement): ') - 1;
 
-data = readmatrix('lambda'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
-data_residual = readmatrix('residual'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
-data_true = readmatrix('lambda_exact'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
+data = readmatrix('interface_data/lambda'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
+data_residual = readmatrix('interface_data/residual'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
+data_true = readmatrix('interface_data/lambda_exact'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
 
-data_y = readmatrix('lambda_y'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
-data_residual_y = readmatrix('residual_y'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
-data_true_y = readmatrix('lambda_exact_y'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
+data_y = readmatrix('interface_data/lambda_y'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
+data_residual_y = readmatrix('interface_data/residual_y'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
+data_true_y = readmatrix('interface_data/lambda_exact_y'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
 
 num_timesteps = size(data, 1);
 num_values_per_timestep = size(data, 2);

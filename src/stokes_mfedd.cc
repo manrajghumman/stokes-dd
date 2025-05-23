@@ -1063,7 +1063,7 @@ namespace dd_stokes
 
 
 
-
+    std::vector<double> y;
 
     unsigned int k_counter = 0; //same as the count of the iteration
     while (k_counter < maxiter)
@@ -1088,13 +1088,13 @@ namespace dd_stokes
             assemble_rhs_star(fe_face_values);
             solve_star();
 
-        //Interface data for plotting, currently works only in 2 dim
-        plot_approx_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
-          neighbors, lambda, plot, plot_y, file, file_y);
-        plot_exact_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
-          neighbors, exact_normal_stress_at_nodes, plot_exact, plot_exact_y, file_exact, file_exact_y);
-        plot_residual_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
-          neighbors, r, plot_residual, plot_residual_y, file_residual, file_residual_y); // residual plotting is not working yet 
+        // //Interface data for plotting, currently works only in 2 dim
+        // plot_approx_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
+        //   neighbors, lambda, plot, plot_y, file, file_y);
+        // plot_exact_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
+        //   neighbors, exact_normal_stress_at_nodes, plot_exact, plot_exact_y, file_exact, file_exact_y);
+        // plot_residual_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
+        //   neighbors, r, plot_residual, plot_residual_y, file_residual, file_residual_y); // residual plotting is not working yet 
 
 
         gmres_iteration++;
@@ -1213,7 +1213,32 @@ namespace dd_stokes
         //saving the combined error at each iteration
         e_all_iter.push_back(combined_error_iter);
 
+        y.resize(k_counter+1,0);
+        assert(Beta.size()==k_counter+2); // gives error if exceed maxiter, do break if size is too much and going to exceed maxiter
+        back_solve(H,Beta,y);
 
+        // reset lambda to zero, x = 0, lambda = x + Q*y
+        for (int side = 0; side < n_faces_per_cell; ++side)
+          if (neighbors[side] >= 0)
+            for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+              lambda[side][i] = 0;
+
+        // lambda = 0; // reset lambda to zero, x = 0, lambda = x + Q*y
+  
+        //updating X(lambda) to get the final lambda value before solving the final star problem
+        for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+          if (neighbors[side] >= 0)
+            for (unsigned int i = 0; i < interface_data[side].size(); ++i)
+              for(unsigned int j=0; j<=k_counter; ++j)
+                lambda[side][i] += Q_side[side][j][i]*y[j];
+
+        //Interface data for plotting, currently works only in 2 dim
+        plot_approx_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
+          neighbors, lambda, plot, plot_y, file, file_y);
+        plot_exact_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
+          neighbors, exact_normal_stress_at_nodes, plot_exact, plot_exact_y, file_exact, file_exact_y);
+        plot_residual_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
+          neighbors, r, plot_residual, plot_residual_y, file_residual, file_residual_y); // residual plotting is not working yet 
 
         residual = combined_error_iter;
 
@@ -1240,25 +1265,34 @@ namespace dd_stokes
 
 
           }
+
         Ap.resize(n_faces_per_cell);
         k_counter++;
       }//end of the while loop(k_counter<max iteration)
 
     //Calculating the final result from H ,Q_side and Beta
     //Finding y which has size k_counter using back sove function
-    std::vector<double> y;
-    if (k_counter < maxiter)
-    {
-      y.resize(k_counter+1,0);
-      assert(Beta.size()==k_counter+2); // gives error if exceed maxiter, do break if size is too much and going to exceed maxiter
-      back_solve(H,Beta,y);
-    }
-    else 
-    {
-     y.resize(k_counter,0);
-      assert(Beta.size()==k_counter+1); // gives error if exceed maxiter, do break if size is too much and going to exceed maxiter
-      back_solve(H,Beta,y);
-    }
+    // // std::vector<double> y;
+    // if (k_counter < maxiter)
+    // {
+    //   y.resize(k_counter+1,0);
+    //   assert(Beta.size()==k_counter+2); // gives error if exceed maxiter, do break if size is too much and going to exceed maxiter
+    //   back_solve(H,Beta,y);
+    // }
+    // else 
+    // {
+    //  y.resize(k_counter,0);
+    //   assert(Beta.size()==k_counter+1); // gives error if exceed maxiter, do break if size is too much and going to exceed maxiter
+    //   back_solve(H,Beta,y);
+    // }
+    
+    // //updating X(lambda) to get the final lambda value before solving the final star problem
+    // for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+    //         if (neighbors[side] >= 0)
+    //             for (unsigned int i = 0; i < interface_data[side].size(); ++i)
+    //               for(unsigned int j=0; j<=k_counter; ++j)
+    //                 lambda[side][i] += Q_side[side][j][i]*y[j];
+    // //we can replace lambda here and just add interface_data(skip one step below)
 
     for (unsigned int side=0; side < n_faces_per_cell; ++side)
     {
@@ -1269,15 +1303,6 @@ namespace dd_stokes
       file_residual_y[side].close();
       file_exact_y[side].close();
     }
-    
-
-    //updating X(lambda) to get the final lambda value before solving the final star problem
-    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-            if (neighbors[side] >= 0)
-                for (unsigned int i = 0; i < interface_data[side].size(); ++i)
-                  for(unsigned int j=0; j<=k_counter; ++j)
-                    lambda[side][i] += Q_side[side][j][i]*y[j];
-    //we can replace lambda here and just add interface_data(skip one step below)
 
         interface_data = lambda;
         for (unsigned int side = 0; side < n_faces_per_cell; ++side)
@@ -2501,13 +2526,13 @@ namespace dd_stokes
   {
     const unsigned int this_mpi =
       Utilities::MPI::this_mpi_process(mpi_communicator);
-    std::ofstream mesh_file("mesh-"
+    std::ofstream mesh_file("../output/gnuplot_data/mesh-"
       +Utilities::int_to_string(this_mpi)
         +Utilities::int_to_string(cycle)
           +".gnuplot");
     GridOut().write_gnuplot(triangulation, mesh_file);
 
-    write_dof_locations("dof_loc-"
+    write_dof_locations("../output/gnuplot_data/dof_loc-"
       +Utilities::int_to_string(this_mpi)
       +Utilities::int_to_string(cycle)
       +".gnuplot");
@@ -2537,13 +2562,13 @@ namespace dd_stokes
   {
     const unsigned int this_mpi =
       Utilities::MPI::this_mpi_process(mpi_communicator);
-    std::ofstream mesh_file("mesh_mortar-"
+    std::ofstream mesh_file("../output/gnuplot_data/mesh_mortar-"
       +Utilities::int_to_string(this_mpi)
         +Utilities::int_to_string(cycle)
           +".gnuplot");
     GridOut().write_gnuplot(triangulation_mortar, mesh_file);
 
-    write_dof_locations_mortar("dof_loc_mortar-"
+    write_dof_locations_mortar("../output/gnuplot_data/dof_loc_mortar-"
       +Utilities::int_to_string(this_mpi)
       +Utilities::int_to_string(cycle)
       +".gnuplot");
@@ -2575,7 +2600,7 @@ namespace dd_stokes
     data_out.build_patches();
 
     std::ofstream output(
-      "sol_dd-" + Utilities::int_to_string(this_mpi)
+      "../output/paraview_data/sol_dd-" + Utilities::int_to_string(this_mpi)
       + "_" + Utilities::int_to_string(cycle, 2) 
       + ".vtk");
     data_out.write_vtk(output);
@@ -2936,7 +2961,7 @@ namespace dd_stokes
     { 
       convergence_table.write_text(std::cout);
 
-      std::string conv_filename = "convergence_mpi" + Utilities::int_to_string(this_mpi) + ".tex";
+      std::string conv_filename = "../output/convg_tables/convergence_mpi" + Utilities::int_to_string(this_mpi) + ".tex";
       std::cout << "this_mpi = " << this_mpi << "\n" << std::endl;
       std::ofstream table_file(conv_filename);
       convergence_table.write_tex(table_file);
@@ -2973,7 +2998,7 @@ namespace dd_stokes
     
     convergence_table_total.write_text(std::cout);
 
-    std::string conv_filename = std::string("convergence_total") + ".tex";
+    std::string conv_filename = std::string("../output/convg_table_total/convergence_total") + ".tex";
     std::cout << "total error\n" << std::endl;
     std::ofstream table_file(conv_filename);
     convergence_table_total.write_tex(table_file);

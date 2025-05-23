@@ -426,6 +426,13 @@ namespace dd_stokes
         }
   }
 
+  /*
+  Opens a file with the given file(filename) 
+  std::ios::trunc will erase previous  
+  content if it exists if not std::ios::out
+  will write it to file
+  */
+
   template <int dim>
   void
   name_files(const unsigned int              &this_mpi,
@@ -442,25 +449,25 @@ namespace dd_stokes
     for (int side=0; side < n_faces_per_cell; ++side){
         if (neighbors[side] >= 0)
         {
-          file[side].open("lambda" + Utilities::int_to_string(this_mpi)
+          file[side].open("../output/interface_data/lambda" + Utilities::int_to_string(this_mpi)
                       + "_" + Utilities::int_to_string(side, 1)+ "_" 
-                      + Utilities::int_to_string(cycle, 1) + ".txt", std::ios::app); // Open a file with the given file(filename)
-          file_exact[side].open("lambda_exact" + Utilities::int_to_string(this_mpi)
+                      + Utilities::int_to_string(cycle, 1) + ".txt", std::ios::out | std::ios::trunc); 
+          file_exact[side].open("../output/interface_data/lambda_exact" + Utilities::int_to_string(this_mpi)                    
                       + "_" + Utilities::int_to_string(side, 1) + "_"
-                      + Utilities::int_to_string(cycle, 1) + ".txt", std::ios::app);
-          file_residual[side].open("residual" + Utilities::int_to_string(this_mpi)
+                      + Utilities::int_to_string(cycle, 1) + ".txt", std::ios::out | std::ios::trunc);
+          file_residual[side].open("../output/interface_data/residual" + Utilities::int_to_string(this_mpi)
                       + "_" + Utilities::int_to_string(side, 1) + "_"
-                      + Utilities::int_to_string(cycle, 1) + ".txt", std::ios::app); // Open a file with the given file(filename)
+                      + Utilities::int_to_string(cycle, 1) + ".txt", std::ios::out | std::ios::trunc); 
 
-          file_y[side].open("lambda_y" + Utilities::int_to_string(this_mpi)
+          file_y[side].open("../output/interface_data/lambda_y" + Utilities::int_to_string(this_mpi)
                       + "_" + Utilities::int_to_string(side, 1) + "_"
-                      + Utilities::int_to_string(cycle, 1) + ".txt", std::ios::app); // Open a file with the given file(filename)
-          file_exact_y[side].open("lambda_exact_y" + Utilities::int_to_string(this_mpi)
+                      + Utilities::int_to_string(cycle, 1) + ".txt", std::ios::out | std::ios::trunc);
+          file_exact_y[side].open("../output/interface_data/lambda_exact_y" + Utilities::int_to_string(this_mpi)
                       + "_" + Utilities::int_to_string(side, 1) + "_"
-                      + Utilities::int_to_string(cycle, 1) + ".txt", std::ios::app);
-         file_residual_y[side].open("residual_y" + Utilities::int_to_string(this_mpi)
+                      + Utilities::int_to_string(cycle, 1) + ".txt", std::ios::out | std::ios::trunc);
+         file_residual_y[side].open("../output/interface_data/residual_y" + Utilities::int_to_string(this_mpi)
                       + "_" + Utilities::int_to_string(side, 1) + "_"
-                      + Utilities::int_to_string(cycle, 1) + ".txt", std::ios::app); // Open a file with the given file(filename)
+                      + Utilities::int_to_string(cycle, 1) + ".txt", std::ios::out | std::ios::trunc); 
         }
       }
   }
