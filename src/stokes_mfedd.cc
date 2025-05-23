@@ -883,7 +883,7 @@ namespace dd_stokes
   //local GMRES function.
   template <int dim>
   void
-  MixedStokesProblemDD<dim>::local_gmres(const unsigned int &maxiter)
+  MixedStokesProblemDD<dim>::local_gmres(const unsigned int &maxiter, unsigned int &cycle)
   {
     TimerOutput::Scope t(computing_timer, "Local CG");
 
@@ -899,6 +899,25 @@ namespace dd_stokes
     std::vector<std::vector<double>> lambda(n_faces_per_cell);
     interface_fe_function.resize(n_faces_per_cell);
     // interface_fe_function_mortar.resize(n_faces_per_cell); // for mortar later
+
+    std::vector<std::ofstream> file(n_faces_per_cell);
+    std::vector<std::ofstream> file_exact(n_faces_per_cell);
+    std::vector<std::ofstream> file_residual(n_faces_per_cell);
+
+    std::vector<std::ofstream> file_y(n_faces_per_cell);
+    std::vector<std::ofstream> file_exact_y(n_faces_per_cell);
+    std::vector<std::ofstream> file_residual_y(n_faces_per_cell);
+
+    //for plotting data storage
+    std::vector<std::vector<double>> plot(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_residual(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_exact(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_y(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_residual_y(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_exact_y(n_faces_per_cell);
+
+    name_files<dim>(this_mpi, cycle, neighbors, file, file_exact, file_residual,
+                      file_y, file_exact_y, file_residual_y);
 
     solve_bar();
     for (unsigned int side = 0; side < n_faces_per_cell; ++side)
@@ -1051,7 +1070,7 @@ namespace dd_stokes
       {
 
 
-  //////------solving the  star problem to find AQ(k)---------------------
+        //////------solving the  star problem to find AQ(k)---------------------
 
         //Performing the Arnoldi algorithm
         //interface data will be given as Q_side[side][k_counter];
@@ -1068,6 +1087,14 @@ namespace dd_stokes
             // interface_fe_function.block(1) = 0;
             assemble_rhs_star(fe_face_values);
             solve_star();
+
+        //Interface data for plotting, currently works only in 2 dim
+        plot_approx_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
+          neighbors, lambda, plot, plot_y, file, file_y);
+        plot_exact_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
+          neighbors, exact_normal_stress_at_nodes, plot_exact, plot_exact_y, file_exact, file_exact_y);
+        plot_residual_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
+          neighbors, r, plot_residual, plot_residual_y, file_residual, file_residual_y); // residual plotting is not working yet 
 
 
         gmres_iteration++;
@@ -1232,6 +1259,16 @@ namespace dd_stokes
       assert(Beta.size()==k_counter+1); // gives error if exceed maxiter, do break if size is too much and going to exceed maxiter
       back_solve(H,Beta,y);
     }
+
+    for (unsigned int side=0; side < n_faces_per_cell; ++side)
+    {
+      file[side].close(); // close the file
+      file_residual[side].close();
+      file_exact[side].close();
+      file_y[side].close(); // close the file
+      file_residual_y[side].close();
+      file_exact_y[side].close();
+    }
     
 
     //updating X(lambda) to get the final lambda value before solving the final star problem
@@ -1290,6 +1327,14 @@ namespace dd_stokes
     std::vector<std::ofstream> file_y(n_faces_per_cell);
     std::vector<std::ofstream> file_exact_y(n_faces_per_cell);
     std::vector<std::ofstream> file_residual_y(n_faces_per_cell);
+
+    //for plotting data storage
+    std::vector<std::vector<double>> plot(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_residual(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_exact(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_y(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_residual_y(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_exact_y(n_faces_per_cell);
 
     name_files<dim>(this_mpi, cycle, neighbors, file, file_exact, file_residual,
                       file_y, file_exact_y, file_residual_y);
@@ -1478,14 +1523,6 @@ namespace dd_stokes
 
     double normB    = 0;
     double normRold = 0;
-
-    //for plotting data storage
-    std::vector<std::vector<double>> plot(n_faces_per_cell);
-    std::vector<std::vector<double>> plot_residual(n_faces_per_cell);
-    std::vector<std::vector<double>> plot_exact(n_faces_per_cell);
-    std::vector<std::vector<double>> plot_y(n_faces_per_cell);
-    std::vector<std::vector<double>> plot_residual_y(n_faces_per_cell);
-    std::vector<std::vector<double>> plot_exact_y(n_faces_per_cell);
 
     unsigned int iteration_counter = 0;
     while (iteration_counter < maxiter)
@@ -2783,7 +2820,7 @@ namespace dd_stokes
             // local_cg(maxiter, cycle);
             pcout << "Starting GMRES iterations..."
                   << "\n";
-            local_gmres(maxiter);
+            local_gmres(maxiter, cycle);
             compute_errors(cycle, reps);
 
             MPI_Barrier(mpi_communicator);

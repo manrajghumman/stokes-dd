@@ -79,7 +79,7 @@ namespace dd_stokes
     // compute_multiscale_basis();
 
     void
-    local_gmres(const unsigned int &maxiter);
+    local_gmres(const unsigned int &maxiter, unsigned int &cycle);
 
     void
     local_cg(const unsigned int &maxiter, unsigned int &cycle);
