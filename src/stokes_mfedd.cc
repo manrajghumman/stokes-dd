@@ -2475,7 +2475,7 @@ namespace dd_stokes
     if (n_processes % 2 == 1)
       interface_dofs_size = interface_dofs_total.size()*(n_processes - 1);
     else
-      interface_dofs_size = (interface_dofs_total.size() / 2) * 7; // for now this works for 2x2 starting grid
+      interface_dofs_size = (interface_dofs_total.size() / 2) * 19; // for now this works for 2x2 starting grid
     
     interface_dofs_total.size();
     // convergence_table.add_value("cycle", cycle);
@@ -2674,6 +2674,8 @@ namespace dd_stokes
 
     tolerance = tol;
     qdegree   = quad_degree;
+
+    clean_files<dim>();// clean up old files and create output directory structure
 
     // pcout << "quad_degree = " << quad_degree << std::endl;
 

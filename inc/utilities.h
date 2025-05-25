@@ -17,6 +17,8 @@
 
 #include <deal.II/lac/sparse_ilu.h>
 
+#include <filesystem>
+
 namespace dd_stokes
 {
   using namespace dealii;
@@ -424,6 +426,167 @@ namespace dd_stokes
                 }
             }
         }
+  }
+
+  /* 
+  In output folder create output directories if not present
+  and clean up old files if present.
+  Will create .gitignore and .gitkeep in each subdirectory
+  with .gitignore
+  {
+  *
+  !.gitkeep
+  }
+  add any files you want to keep in .gitkeep
+  this way we can keep the directory structure in git
+  */
+  template <int dim>
+  void
+  clean_files()
+  {
+    namespace fs = std::filesystem;
+    // Check if output directory exists
+    if (!fs::exists("../output/"))
+      fs::create_directory("../output/");
+
+    // interface_data directory
+    {
+      // Check if interface_data directory exists
+    if (!fs::exists("../output/interface_data/"))
+      fs::create_directory("../output/interface_data/");
+    // Remove old files in the interface_data directory
+    for (const auto &entry : fs::directory_iterator("../output/interface_data/"))
+      {
+        const auto &path = entry.path();
+        std::string filename = path.filename().string();
+        if (entry.is_regular_file() && filename[0] != '.')
+          fs::remove(entry.path());
+      }
+    // If the directory does not exist, create it
+    if (!fs::exists("../output/interface_data/"))
+      fs::create_directory("../output/interface_data/");
+    // If the directory exists, but is not a directory, throw an error
+    if (fs::exists("../output/interface_data/") && !fs::is_directory("../output/interface_data/"))
+      throw std::runtime_error("../output/interface_data/ is not a directory.");
+    
+    // create .gitkeep (empty file)
+    std::ofstream(std::string("../output/interface_data") + "/.gitkeep").close();
+    // create .gitignore
+    std::ofstream gitignore(std::string("../output/interface_data") + "/.gitignore");
+    gitignore << "*\n!.gitkeep\n";
+    gitignore.close();
+    }
+    // paraview_data directory
+    {
+      // Check if paraview_data directory exists
+    if (!fs::exists("../output/paraview_data/"))
+      fs::create_directory("../output/paraview_data/");
+    // Remove old files in the paraview_data directory
+    for (const auto &entry : fs::directory_iterator("../output/paraview_data/"))
+      {
+        const auto &path = entry.path();
+        std::string filename = path.filename().string();
+        if (entry.is_regular_file() && filename[0] != '.')
+          fs::remove(entry.path());
+      }
+    // If the directory does not exist, create it
+    if (!fs::exists("../output/paraview_data/"))
+      fs::create_directory("../output/paraview_data/");
+    // If the directory exists, but is not a directory, throw an error
+    if (fs::exists("../output/paraview_data/") && !fs::is_directory("../output/paraview_data/"))
+      throw std::runtime_error("../output/paraview_data/ is not a directory.");
+
+    // create .gitkeep (empty file)
+    std::ofstream(std::string("../output/paraview_data") + "/.gitkeep").close();
+    // create .gitignore
+    std::ofstream gitignore(std::string("../output/paraview_data") + "/.gitignore");
+    gitignore << "*\n!.gitkeep\n";
+    gitignore.close();
+    }
+
+    //gnuplot_data directory
+    {
+      // Check if gnuplot_data directory exists
+    if (!fs::exists("../output/gnuplot_data/"))
+      fs::create_directory("../output/gnuplot_data/");
+    // Remove old files in the gnuplot_data directory
+    for (const auto &entry : fs::directory_iterator("../output/gnuplot_data/"))
+      {
+        const auto &path = entry.path();
+        std::string filename = path.filename().string();
+        if (entry.is_regular_file() && filename[0] != '.')
+          fs::remove(entry.path());
+      }
+    // If the directory does not exist, create it
+    if (!fs::exists("../output/gnuplot_data/"))
+      fs::create_directory("../output/gnuplot_data/");
+    // If the directory exists, but is not a directory, throw an error
+    if (fs::exists("../output/gnuplot_data/") && !fs::is_directory("../output/gnuplot_data/"))
+      throw std::runtime_error("../output/gnuplot_data/ is not a directory.");
+
+    // create .gitkeep (empty file)
+    std::ofstream(std::string("../output/gnuplot_data") + "/.gitkeep").close();
+    // create .gitignore
+    std::ofstream gitignore(std::string("../output/gnuplot_data") + "/.gitignore");
+    gitignore << "*\n!.gitkeep\n";
+    gitignore.close();
+    }
+
+    // convg_tables directory
+    {
+      // Check if convg_tables directory exists
+    if (!fs::exists("../output/convg_tables/"))
+      fs::create_directory("../output/convg_tables/");
+    // Remove old files in the convg_tables directory
+    for (const auto &entry : fs::directory_iterator("../output/convg_tables/"))
+      {
+        const auto &path = entry.path();
+        std::string filename = path.filename().string();
+        if (entry.is_regular_file() && filename[0] != '.')
+          fs::remove(entry.path());
+      }
+    // If the directory does not exist, create it
+    if (!fs::exists("../output/convg_tables/"))
+      fs::create_directory("../output/convg_tables/");
+    // If the directory exists, but is not a directory, throw an error
+    if (fs::exists("../output/convg_tables/") && !fs::is_directory("../output/convg_tables/"))
+      throw std::runtime_error("../output/convg_tables/ is not a directory.");
+
+    // create .gitkeep (empty file)
+    std::ofstream(std::string("../output/convg_tables") + "/.gitkeep").close();
+    // create .gitignore
+    std::ofstream gitignore(std::string("../output/convg_tables") + "/.gitignore");
+    gitignore << "*\n!.gitkeep\n";
+    gitignore.close();
+    }
+
+    // convg_table_total directory
+    {
+      // Check if convg_table_total directory exists
+    if (!fs::exists("../output/convg_table_total/"))
+      fs::create_directory("../output/convg_table_total/");
+    // Remove old files in the convg_table_total directory
+    for (const auto &entry : fs::directory_iterator("../output/convg_table_total/"))
+      {
+        const auto &path = entry.path();
+        std::string filename = path.filename().string();
+        if (entry.is_regular_file() && filename[0] != '.')
+          fs::remove(entry.path());
+      }
+    // If the directory does not exist, create it
+    if (!fs::exists("../output/convg_table_total/"))
+      fs::create_directory("../output/convg_table_total/");
+    // If the directory exists, but is not a directory, throw an error
+    if (fs::exists("../output/convg_table_total/") && !fs::is_directory("../output/convg_table_total/"))
+      throw std::runtime_error("../output/convg_table_total/ is not a directory.");
+
+    // create .gitkeep (empty file)
+    std::ofstream(std::string("../output/convg_table_total") + "/.gitkeep").close();
+    // create .gitignore
+    std::ofstream gitignore(std::string("../output/convg_table_total") + "/.gitignore");
+    gitignore << "*\n!.gitkeep\n";
+    gitignore.close();
+    }
   }
 
   /*
