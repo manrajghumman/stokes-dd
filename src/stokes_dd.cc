@@ -82,7 +82,7 @@ main(int argc, char *argv[])
       std::string name3("M2");
       std::string name4("M3");
 
-      no_mortars.run(5, boundary_m2d, mesh_m2d, 1.e-10, name1, 500, 11);
+      no_mortars.run(5, boundary_m2d, mesh_m2d, 1.e-9, name1, 500, 11);
       // mortars.run(5, boundary_m2d, mesh_m2d, 1.e-8, name1, 500, 11);
     }
 

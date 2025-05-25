@@ -2470,11 +2470,19 @@ namespace dd_stokes
       order_u_total = 0;
       order_p_total = 0;
     }
-
+    int interface_dofs_size; 
+    pcout << "n_processes = " << n_processes << std::endl;
+    if (n_processes % 2 == 1)
+      interface_dofs_size = interface_dofs_total.size()*(n_processes - 1);
+    else
+      interface_dofs_size = (interface_dofs_total.size() / 2) * 7; // for now this works for 2x2 starting grid
+    
+    interface_dofs_total.size();
     // convergence_table.add_value("cycle", cycle);
     convergence_table.add_value("cells", n_active_cells);
     convergence_table.add_value("h", "1/"+Utilities::int_to_string(n));
-    convergence_table.add_value("dofs", n_dofs);
+    // convergence_table.add_value("dofs", n_dofs);
+    convergence_table.add_value("interface_dofs", interface_dofs_size);
     // convergence_table.add_value("dofs_m", mortar_dofs);
     // convergence_table.add_value("dofs_m", n_dofs_mortar);
     convergence_table.add_value("u_L2", u_l2_error);
@@ -2489,7 +2497,8 @@ namespace dd_stokes
     // convergence_table.add_value("uy_H1", uy_H1_error);
 
     convergence_table_total.add_value("h", "1/"+Utilities::int_to_string(n));
-    convergence_table_total.add_value("dofs", n_dofs);
+    // convergence_table_total.add_value("dofs", n_dofs);
+    convergence_table_total.add_value("interface_dofs", interface_dofs_size);
     // convergence_table_total.add_value("dofs_m", mortar_dofs);
     convergence_table_total.add_value("u_L2", u_l2_error_total);
     convergence_table_total.add_value("u_order", order_u_total);
@@ -2897,8 +2906,11 @@ namespace dd_stokes
 
     convergence_table.set_tex_caption("cells", "\\# cells");
     convergence_table.set_tex_caption("h", "\\ h");
-    convergence_table.set_tex_caption("dofs", "\\# dofs");
+    // convergence_table.set_tex_caption("dofs", "\\# dofs");
+    convergence_table.set_tex_caption("interface_dofs", "\\# interace dofs");
     convergence_table.set_tex_caption("cg_iter", "cg iter");
+    convergence_table.set_tex_caption("u_order", "u order");
+    convergence_table.set_tex_caption("p_order", "p order");
     convergence_table.set_tex_caption("residual", "residual");
     convergence_table.set_tex_caption("u_L2", "$L^2$-error (u)");
     convergence_table.set_tex_caption("p_L2", "$L^2$-error (p)");
@@ -2908,7 +2920,7 @@ namespace dd_stokes
     // convergence_table.set_tex_caption("uy_H1", "$H^1$-error (uy)");
 
     convergence_table.set_tex_format("h", "r");
-    convergence_table.set_tex_format("dofs", "r");
+    convergence_table.set_tex_format("interface_dofs", "r");
     // convergence_table.set_tex_format("dofs_m", "r");
 
     // convergence_table.add_column_to_supercolumn("cycle", "n   h");
@@ -2985,14 +2997,17 @@ namespace dd_stokes
 
     // convergence_table_total.set_tex_caption("cells", "\\# cells");
     convergence_table_total.set_tex_caption("h", "\\ h");
-    convergence_table_total.set_tex_caption("dofs", "\\# dofs");
+    // convergence_table_total.set_tex_caption("dofs", "\\# dofs");
+    convergence_table_total.set_tex_caption("interface_dofs", "\\# interface dofs");
     convergence_table_total.set_tex_caption("cg_iter", "cg iter");
+    convergence_table_total.set_tex_caption("u_order", "u order");
+    convergence_table_total.set_tex_caption("p_order", "p order");
     convergence_table_total.set_tex_caption("residual", "residual");
     convergence_table_total.set_tex_caption("u_L2", "$L^2$-error (u)");
     convergence_table_total.set_tex_caption("p_L2", "$L^2$-error (p)");
 
     convergence_table_total.set_tex_format("h", "r");
-    convergence_table_total.set_tex_format("dofs", "r");
+    convergence_table_total.set_tex_format("interface_dofs", "r");
     // convergence_table_total.set_tex_format("dofs_m", "r");
 
     
