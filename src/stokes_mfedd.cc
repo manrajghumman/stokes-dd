@@ -2471,11 +2471,25 @@ namespace dd_stokes
       order_p_total = 0;
     }
     int interface_dofs_size; 
+    int tmp;
     pcout << "n_processes = " << n_processes << std::endl;
-    if (n_processes % 2 == 1)
-      interface_dofs_size = interface_dofs_total.size()*(n_processes - 1);
+    // template <int dim>
+    // pcout << "dim = " << dim << std::endl;
+    if (dim == 2)
+    {
+      if (this_mpi % 2 == 0)
+        tmp = 0;
+      else
+        tmp = interface_dofs_total.size();
+      MPI_Allreduce(&tmp, //sending this data
+        &interface_dofs_size, //receiving the result here
+        1, //number of elements in alpha and alpha_buffer = 1+1
+        MPI_INT, //type of each element
+        MPI_SUM, //adding all elements received
+        mpi_communicator);
+    }
     else
-      interface_dofs_size = (interface_dofs_total.size() / 2) * 19; // for now this works for 2x2 starting grid
+      throw std::runtime_error("dim = 3 not yet implemented!");
     
     interface_dofs_total.size();
     // convergence_table.add_value("cycle", cycle);
@@ -2852,8 +2866,8 @@ namespace dd_stokes
             
             // pcout << "Starting CG iterations..."
             //       << "\n";
-           
             // local_cg(maxiter, cycle);
+            
             pcout << "Starting GMRES iterations..."
                   << "\n";
             local_gmres(maxiter, cycle);
