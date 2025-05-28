@@ -70,16 +70,20 @@ namespace dd_stokes
   template <int dim>
   MixedStokesProblemDD<dim>::MixedStokesProblemDD(
     const unsigned int degree,
-    const unsigned int mortar_flag,
-    const unsigned int mortar_degree)
+    const bool ess_dir_flag,
+    const bool mortar_flag,
+    const unsigned int mortar_degree,
+    const unsigned int iter_meth_flag)
     : mpi_communicator(MPI_COMM_WORLD)
     , P_coarse2fine(false)
     , P_fine2coarse(false)
     , gmres_iteration(0)
     , n_domains(dim, 0)//vector of type unsigned int initialized to size dim with entries = 0
     , degree(degree)
-    , mortar_degree(mortar_degree)
+    , ess_dir_flag(ess_dir_flag)
     , mortar_flag(mortar_flag)
+    , mortar_degree(mortar_degree)
+    , iter_meth_flag(iter_meth_flag)
 	  , cg_iteration(0)
     , fe(FE_Q<dim>(degree+1),//fe for velocity
          dim,
@@ -174,35 +178,37 @@ namespace dd_stokes
     if (mortar_flag)
       dof_handler_mortar.distribute_dofs(fe_mortar);
 
+    if (ess_dir_flag)
+      {
+        // Set up Dirichlet boundary conditions
+        {
+          constraints.clear();
+
+          const FEValuesExtractors::Vector velocities(0);
+          const FEValuesExtractors::Scalar pressure(dim);
+          DoFTools::make_hanging_node_constraints(dof_handler, constraints);
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                  0,
+                                                  BoundaryValues<dim>(),
+                                                  constraints,
+                                                  fe.component_mask(velocities));// distributing velocity constraints eg dirichlet values
+        }
+        constraints.close();
+        {
+          constraints_star.clear();
+
+          const FEValuesExtractors::Vector velocities(0);
+          const FEValuesExtractors::Scalar pressure(dim);
+          DoFTools::make_hanging_node_constraints(dof_handler, constraints_star);
+          VectorTools::interpolate_boundary_values(dof_handler,
+                                                  0,
+                                                  Functions::ZeroFunction<dim>(fe.n_components()),
+                                                  constraints_star,
+                                                  fe.component_mask(velocities));// distributing velocity constraints eg dirichlet values
+        }
+        constraints_star.close(); 
+      }
     
-    // {
-    //   constraints.clear();
-
-    //   const FEValuesExtractors::Vector velocities(0);
-    //   const FEValuesExtractors::Scalar pressure(dim);
-    //   DoFTools::make_hanging_node_constraints(dof_handler, constraints);
-    //   VectorTools::interpolate_boundary_values(dof_handler,
-    //                                            0,
-    //                                            BoundaryValues<dim>(),
-    //                                            constraints,
-    //                                            fe.component_mask(velocities));// distributing velocity constraints eg dirichlet values
-    // }
-    // constraints.close();
-
-
-    // {
-    //   constraints_star.clear();
-
-    //   const FEValuesExtractors::Vector velocities(0);
-    //   const FEValuesExtractors::Scalar pressure(dim);
-    //   DoFTools::make_hanging_node_constraints(dof_handler, constraints_star);
-    //   VectorTools::interpolate_boundary_values(dof_handler,
-    //                                            0,
-    //                                            Functions::ZeroFunction<dim>(fe.n_components()),
-    //                                            constraints_star,
-    //                                            fe.component_mask(velocities));// distributing velocity constraints eg dirichlet values
-    // }
-    // constraints_star.close();
     
 
     std::vector<types::global_dof_index> dofs_per_component =
@@ -289,6 +295,7 @@ namespace dd_stokes
         n_p_mortar = dofs_per_component_mortar[dim];
 
         n_velocity_interface = n_u_mortar;
+        n_velocity_interface_fe = n_u;
 
         solution_bar_mortar.reinit(2);
         solution_bar_mortar.block(0).reinit(n_u_mortar);
@@ -310,25 +317,23 @@ namespace dd_stokes
     << std::endl;
 
     // exact_solution_at_nodes.reinit(solution_bar_stokes);
-    exact_normal_stress_at_nodes.resize(GeometryInfo<dim>::faces_per_cell);
+    exact_normal_stress_at_nodes_fe.resize(GeometryInfo<dim>::faces_per_cell);
+    exact_normal_stress_at_nodes_mortar.resize(GeometryInfo<dim>::faces_per_cell);
 
     for (unsigned int face = 0;
              face < GeometryInfo<dim>::faces_per_cell;
              ++face)
       {
-        if (mortar_flag == 0)
+        exact_normal_stress_at_nodes_fe[face].reinit(solution_bar_stokes);
+        exact_normal_stress_at_nodes_fe[face] = 0;
+        NormalStressTensor_Exact<dim> exact_lambda(face);
+        VectorTools::interpolate(dof_handler, exact_lambda, exact_normal_stress_at_nodes_fe[face]);
+        if (mortar_flag == 1)
         {
-          exact_normal_stress_at_nodes[face].reinit(solution_bar_stokes);
-          exact_normal_stress_at_nodes[face] = 0;
-          NormalStressTensor_Exact<dim> exact_lambda(face);
-          VectorTools::interpolate(dof_handler, exact_lambda, exact_normal_stress_at_nodes[face]);
-        }
-        else
-        {
-          exact_normal_stress_at_nodes[face].reinit(solution_bar_mortar);
-          exact_normal_stress_at_nodes[face] = 0;
-          NormalStressTensor_Exact<dim> exact_lambda(face);
-          VectorTools::interpolate(dof_handler_mortar, exact_lambda, exact_normal_stress_at_nodes[face]);
+          exact_normal_stress_at_nodes_mortar[face].reinit(solution_bar_mortar);
+          exact_normal_stress_at_nodes_mortar[face] = 0;
+          // NormalStressTensor_Exact<dim> exact_lambda(face);
+          VectorTools::interpolate(dof_handler_mortar, exact_lambda, exact_normal_stress_at_nodes_mortar[face]);
         }
       }
   }
@@ -493,7 +498,7 @@ namespace dd_stokes
                        fe_face_values.JxW(q_point);    // dx
                 }
             }//Ending Neumann Condition
-            if (face->boundary_id() == 0)//Entering Dirichlet Condition
+            if (face->boundary_id() == 0 && ess_dir_flag == 0)//Entering Dirichlet Condition
             {
               for (unsigned int q = 0; q < n_face_q_points; ++q)
               {
@@ -549,21 +554,28 @@ namespace dd_stokes
               local_matrix(i, j) = local_matrix(j, i);
 
         cell->get_dof_indices(local_dof_indices);
-        for (unsigned int i = 0; i < dofs_per_cell; ++i)
+        if (ess_dir_flag)
+        {
+          constraints.distribute_local_to_global(local_matrix,
+                                                 local_rhs,
+                                                 local_dof_indices,
+                                                 system_matrix,
+                                                 system_rhs_bar_stokes);
+          // constraints_star.distribute_local_to_global(local_matrix,
+          //                                             local_dof_indices,
+          //                                             system_matrix_star);
+        }
+        else
+        {
+          for (unsigned int i = 0; i < dofs_per_cell; ++i)
           for (unsigned int j = 0; j < dofs_per_cell; ++j)
             system_matrix.add(local_dof_indices[i],
                               local_dof_indices[j],
                               local_matrix(i, j));
-        for (unsigned int i = 0; i < dofs_per_cell; ++i)
-          system_rhs_bar_stokes(local_dof_indices[i]) += local_rhs(i);
-        // constraints.distribute_local_to_global(local_matrix,
-        //                                        local_rhs,
-        //                                        local_dof_indices,
-        //                                        system_matrix,
-        //                                        system_rhs_bar_stokes);
-        // constraints_star.distribute_local_to_global(local_matrix,
-        //                                             local_dof_indices,
-        //                                             system_matrix_star);
+          for (unsigned int i = 0; i < dofs_per_cell; ++i)
+            system_rhs_bar_stokes(local_dof_indices[i]) += local_rhs(i);
+        }
+        
       }
       // system_matrix_star.copy_from(system_matrix);
       // system_matrix.m()
@@ -582,6 +594,8 @@ namespace dd_stokes
     TimerOutput::Scope t(computing_timer, "Get interface DoFs");
     interface_dofs.resize(GeometryInfo<dim>::faces_per_cell,
                           std::vector<types::global_dof_index>());
+    interface_dofs_fe.resize(GeometryInfo<dim>::faces_per_cell,
+                          std::vector<types::global_dof_index>());
     interface_dofs_find_neumann.resize(GeometryInfo<dim>::faces_per_cell,
                           std::vector<types::global_dof_index>());
     interface_dofs_total.resize(0);
@@ -592,9 +606,9 @@ namespace dd_stokes
       Utilities::MPI::n_mpi_processes(mpi_communicator);
     const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
 
-    std::vector<types::global_dof_index> local_face_dof_indices;
+    std::vector<types::global_dof_index> local_face_dof_indices, local_face_dof_indices_fe;
 
-    typename DoFHandler<dim>::active_cell_iterator cell, endc;
+    typename DoFHandler<dim>::active_cell_iterator cell, endc, cell_fe, endc_fe;
     unsigned int side = 0;
     
     if (mortar_flag == 0)
@@ -604,9 +618,41 @@ namespace dd_stokes
       }
     else
       {
-        cell = dof_handler_mortar.begin_active(),
-        endc = dof_handler_mortar.end();
-        local_face_dof_indices.resize(fe_mortar.dofs_per_face);
+        //first for fe/fine grid
+        cell_fe = dof_handler.begin_active(), endc_fe = dof_handler.end();
+        local_face_dof_indices_fe.resize(fe.dofs_per_face);
+        for (; cell_fe != endc_fe; ++cell_fe)
+        {
+          for (unsigned int face_n = 0;
+              face_n < n_faces_per_cell;
+              ++face_n)
+            if (cell_fe->at_boundary(face_n) &&
+                (cell_fe->face(face_n)->boundary_id() != 0 && cell_fe->face(face_n)->boundary_id() !=7))
+              {
+                cell_fe->face(face_n)->get_dof_indices(local_face_dof_indices_fe, 0);
+                side = cell_fe->face(face_n)->boundary_id() - 1;
+                for (auto el : local_face_dof_indices_fe)
+                {
+                  // pcout << "el = " << el << std::endl;
+                  if (el < n_velocity_interface_fe){
+                      // pcout << "el = " << el << std::endl;
+                      if (std::find (interface_dofs_fe[side].begin(), interface_dofs_fe[side].end(), el) 
+                                                                    == interface_dofs_fe[side].end()){
+                                                                        interface_dofs_fe[side].push_back(el);
+                                                                        // interface_dofs_total.push_back(el);
+                                                                    }
+                      
+                      // if (std::find (interface_dofs_find_neumann[side].begin(), interface_dofs_find_neumann[side].end(), el) 
+                      //                                               == interface_dofs_find_neumann[side].end()){
+                      //                                                   interface_dofs_find_neumann[side].push_back(el);
+                                                                    // }
+                  }
+                }
+              }
+        }
+        // now for mortar/coarse grid
+        cell = dof_handler_mortar.begin_active(), endc = dof_handler_mortar.end();
+        local_face_dof_indices.resize(fe_mortar.dofs_per_face);//it is shrunk to the mortar size but still has old elements
       }
 
     for (; cell != endc; ++cell)
@@ -759,8 +805,18 @@ namespace dd_stokes
                 }
               }  
           }
-        for (unsigned int i = 0; i < dofs_per_cell; ++i)
-          system_rhs_star_stokes(local_dof_indices[i]) += local_rhs(i);
+        if (ess_dir_flag)
+          {
+            constraints_star.distribute_local_to_global(local_rhs,
+                                                        local_dof_indices,
+                                                        system_rhs_star_stokes);
+          }
+        else
+          {
+            for (unsigned int i = 0; i < dofs_per_cell; ++i)
+              system_rhs_star_stokes(local_dof_indices[i]) += local_rhs(i);
+          }
+        
         // for (unsigned int i = 0; i < dofs_per_cell; ++i)
         //   for (unsigned int side = 0; side < n_faces_per_cell; ++side){
         //     if (std::find (interface_dofs[side].begin(), interface_dofs[side].end(), 
@@ -782,9 +838,8 @@ namespace dd_stokes
     {
       A_direct.initialize (system_matrix);
       A_direct.vmult(solution_bar_stokes, system_rhs_bar_stokes);
-      // solution_bar_stokes.print(std::cout);
-      // constraints.distribute (solution_bar_stokes);
-      // B_direct.initialize (system_matrix_star);
+      if (ess_dir_flag)
+          constraints.distribute (solution_bar_stokes);
     }
   }
 
@@ -795,7 +850,8 @@ namespace dd_stokes
       TimerOutput::Scope t(computing_timer, "Solve star");
     {
       A_direct.vmult (solution_star_stokes, system_rhs_star_stokes);
-      // constraints_star.distribute(solution_star_stokes);
+      if (ess_dir_flag)
+        constraints_star.distribute (solution_star_stokes);
     }
   }
 
@@ -898,6 +954,7 @@ namespace dd_stokes
     std::vector<std::vector<double>> interface_data(n_faces_per_cell);
     std::vector<std::vector<double>> lambda(n_faces_per_cell);
     interface_fe_function.resize(n_faces_per_cell);
+    interface_fe_function_fe.resize(n_faces_per_cell);
     // interface_fe_function_mortar.resize(n_faces_per_cell); // for mortar later
 
     std::vector<std::ofstream> file(n_faces_per_cell);
@@ -916,8 +973,29 @@ namespace dd_stokes
     std::vector<std::vector<double>> plot_residual_y(n_faces_per_cell);
     std::vector<std::vector<double>> plot_exact_y(n_faces_per_cell);
 
-    name_files<dim>(this_mpi, cycle, neighbors, file, file_exact, file_residual,
+    name_files<dim>(this_mpi, 0, cycle, neighbors, file, file_exact, file_residual,
                       file_y, file_exact_y, file_residual_y);
+
+    
+    // std::vector<std::ofstream> file_mortar(n_faces_per_cell);
+    // std::vector<std::ofstream> file_exact_mortar(n_faces_per_cell);
+    // std::vector<std::ofstream> file_residual_mortar(n_faces_per_cell);
+
+    // std::vector<std::ofstream> file_y_mortar(n_faces_per_cell);
+    // std::vector<std::ofstream> file_exact_y_mortar(n_faces_per_cell);
+    // std::vector<std::ofstream> file_residual_y_mortar(n_faces_per_cell);
+
+    // //for plotting data storage
+    // std::vector<std::vector<double>> plot_mortar(n_faces_per_cell);
+    // std::vector<std::vector<double>> plot_residual_mortar(n_faces_per_cell);
+    // std::vector<std::vector<double>> plot_exact_mortar(n_faces_per_cell);
+    // std::vector<std::vector<double>> plot_y_mortar(n_faces_per_cell);
+    // std::vector<std::vector<double>> plot_residual_y_mortar(n_faces_per_cell);
+    // std::vector<std::vector<double>> plot_exact_y_mortar(n_faces_per_cell);
+
+    // name_files<dim>(this_mpi, mortar_flag, cycle, neighbors, file_mortar, file_exact_mortar, file_residual_mortar,
+    //                 file_y_mortar, file_exact_y_mortar, file_residual_y_mortar);
+
 
     solve_bar();
     for (unsigned int side = 0; side < n_faces_per_cell; ++side)
@@ -1236,9 +1314,19 @@ namespace dd_stokes
         plot_approx_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
           neighbors, lambda, plot, plot_y, file, file_y);
         plot_exact_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
-          neighbors, exact_normal_stress_at_nodes, plot_exact, plot_exact_y, file_exact, file_exact_y);
+          neighbors, exact_normal_stress_at_nodes_fe, plot_exact, plot_exact_y, file_exact, file_exact_y);
         plot_residual_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
           neighbors, r, plot_residual, plot_residual_y, file_residual, file_residual_y); // residual plotting is not working yet 
+        
+        // if (mortar_flag)
+        // {
+        //   plot_approx_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
+        //   neighbors, lambda, plot_mortar, plot_y_mortar, file_mortar, file_y_mortar);
+        //   plot_exact_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
+        //     neighbors, exact_normal_stress_at_nodes_mortar, plot_exact_mortar, plot_exact_y_mortar, file_exact_mortar, file_exact_y_mortar);
+        //   plot_residual_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
+        //     neighbors, r, plot_residual_mortar, plot_residual_y_mortar, file_residual_mortar, file_residual_y_mortar);       
+        // }
 
         residual = combined_error_iter;
 
@@ -1302,6 +1390,13 @@ namespace dd_stokes
       file_y[side].close(); // close the file
       file_residual_y[side].close();
       file_exact_y[side].close();
+      // //for mortar will be empty if mortar_flag is false
+      // file_mortar[side].close(); // close the file
+      // file_residual_mortar[side].close();
+      // file_exact_mortar[side].close();
+      // file_y_mortar[side].close(); // close the file
+      // file_residual_y_mortar[side].close();
+      // file_exact_y_mortar[side].close();
     }
 
         interface_data = lambda;
@@ -1341,9 +1436,12 @@ namespace dd_stokes
     std::vector<std::vector<double>> interface_data_send(n_faces_per_cell);
     std::vector<std::vector<double>> interface_data(n_faces_per_cell);
     interface_fe_function.resize(n_faces_per_cell);
+    interface_fe_function_fe.resize(n_faces_per_cell);
     interface_fe_function_mortar.resize(n_faces_per_cell);
+    interface_fe_function_mortar_fe.resize(n_faces_per_cell);
 
     std::vector<std::vector<double>> lambda(n_faces_per_cell);
+    std::vector<std::vector<double>> lambda_fe(n_faces_per_cell);
 
     std::vector<std::ofstream> file(n_faces_per_cell);
     std::vector<std::ofstream> file_exact(n_faces_per_cell);
@@ -1361,8 +1459,29 @@ namespace dd_stokes
     std::vector<std::vector<double>> plot_residual_y(n_faces_per_cell);
     std::vector<std::vector<double>> plot_exact_y(n_faces_per_cell);
 
-    name_files<dim>(this_mpi, cycle, neighbors, file, file_exact, file_residual,
+    name_files<dim>(this_mpi, 0, cycle, neighbors, file, file_exact, file_residual,
                       file_y, file_exact_y, file_residual_y);
+                      
+    // for mortar will be empty if mortar_flag is false
+    std::vector<std::ofstream> file_mortar(n_faces_per_cell);
+    std::vector<std::ofstream> file_exact_mortar(n_faces_per_cell);
+    std::vector<std::ofstream> file_residual_mortar(n_faces_per_cell);
+
+    std::vector<std::ofstream> file_y_mortar(n_faces_per_cell);
+    std::vector<std::ofstream> file_exact_y_mortar(n_faces_per_cell);
+    std::vector<std::ofstream> file_residual_y_mortar(n_faces_per_cell);
+
+    //for plotting data storage
+    std::vector<std::vector<double>> plot_mortar(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_residual_mortar(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_exact_mortar(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_y_mortar(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_residual_y_mortar(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_exact_y_mortar(n_faces_per_cell);
+
+    name_files<dim>(this_mpi, mortar_flag, cycle, neighbors, file_mortar, file_exact_mortar, file_residual_mortar,
+                    file_y_mortar, file_exact_y_mortar, file_residual_y_mortar);
+
 
     solve_bar();
 
@@ -1374,6 +1493,7 @@ namespace dd_stokes
               interface_data_send[side].resize(interface_dofs[side].size(), 0);
               interface_data[side].resize(interface_dofs[side].size(), 0);
               interface_fe_function[side].reinit(solution_bar_stokes);
+              interface_fe_function_fe[side].reinit(solution_bar_stokes);
               // interface_fe_function_mortar[side].reinit(solution_bar_mortar);
         }
 
@@ -1394,7 +1514,10 @@ namespace dd_stokes
     { 
       for (unsigned int side = 0; side < n_faces_per_cell; ++side)
         if (neighbors[side] >= 0)
+        {
           interface_fe_function_mortar[side].reinit(solution_bar_mortar);
+          interface_fe_function_mortar_fe[side].reinit(solution_bar_mortar);
+        }
       
       // pcout << "fe_mortar = " << 1 << ", n_components = " << fe_mortar.n_components()
       //       // << ", \nn_function_components = " << n_function_components
@@ -1454,6 +1577,7 @@ namespace dd_stokes
           // is just zero
           Ap[side].resize(interface_dofs[side].size(), 0);
           lambda[side].resize(interface_dofs[side].size(), 0);
+          // lambda_fe[side].resize(interface_dofs_fe[side].size(), 0);
 
           r[side].resize(interface_dofs[side].size(), 0);
           std::vector<double> r_receive_buffer(r[side].size());
@@ -1597,12 +1721,53 @@ namespace dd_stokes
       gmres_iteration++;
       // pcout << "did we get here??  5" << std::endl;
       //Interface data for plotting, currently works only in 2 dim
-      plot_approx_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
-        neighbors, lambda, plot, plot_y, file, file_y);
-      plot_exact_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
-        neighbors, exact_normal_stress_at_nodes, plot_exact, plot_exact_y, file_exact, file_exact_y);
-      plot_residual_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
-        neighbors, r, plot_residual, plot_residual_y, file_residual, file_residual_y);          
+      
+      if (mortar_flag)
+      {
+        // for mortar grid
+        plot_approx_function<dim>(this_mpi, 1, mortar_degree, interface_dofs, 
+        neighbors, lambda, plot_mortar, plot_y_mortar, file_mortar, file_y_mortar);
+        plot_exact_function<dim>(this_mpi, 1, mortar_degree, interface_dofs, 
+          neighbors, exact_normal_stress_at_nodes_mortar, plot_exact_mortar, plot_exact_y_mortar, file_exact_mortar, file_exact_y_mortar);
+        plot_residual_function<dim>(this_mpi, 1, mortar_degree, interface_dofs, 
+          neighbors, r, plot_residual_mortar, plot_residual_y_mortar, file_residual_mortar, file_residual_y_mortar);  
+        // for fe grid
+        // first prepare lambda on fe grid
+        for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+          if (neighbors[side] >= 0)
+          {
+            lambda_fe[side].resize(interface_dofs_fe[side].size(), 0);
+            for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+              interface_fe_function_mortar_fe[side][interface_dofs[side][i]] = lambda[side][i];
+            // project mortar to fe grid
+            project_mortar(P_coarse2fine,
+                          dof_handler_mortar,
+                          interface_fe_function_mortar_fe[side],
+                          quad,
+                          constraints_mortar,
+                          neighbors,
+                          dof_handler,
+                          interface_fe_function_fe[side]);
+            for (unsigned int i = 0; i < interface_dofs_fe[side].size(); ++i)
+              lambda_fe[side][i] = interface_fe_function_fe[side][interface_dofs_fe[side][i]];
+          }
+        // then plot it
+        plot_approx_function<dim>(this_mpi, 0, mortar_degree, interface_dofs_fe, 
+          neighbors, lambda_fe, plot, plot_y, file, file_y);
+        plot_exact_function<dim>(this_mpi, 0, mortar_degree, interface_dofs_fe, 
+          neighbors, exact_normal_stress_at_nodes_fe, plot_exact, plot_exact_y, file_exact, file_exact_y);
+        plot_residual_function<dim>(this_mpi, 0, mortar_degree, interface_dofs_fe, 
+          neighbors, r, plot_residual, plot_residual_y, file_residual, file_residual_y);
+      }
+      else
+      {
+        plot_approx_function<dim>(this_mpi, 0, mortar_degree, interface_dofs, 
+          neighbors, lambda, plot, plot_y, file, file_y);
+        plot_exact_function<dim>(this_mpi, 0, mortar_degree, interface_dofs, 
+          neighbors, exact_normal_stress_at_nodes_fe, plot_exact, plot_exact_y, file_exact, file_exact_y);
+        plot_residual_function<dim>(this_mpi, 0, mortar_degree, interface_dofs, 
+          neighbors, r, plot_residual, plot_residual_y, file_residual, file_residual_y);
+      }
 
       if (mortar_flag)
         project_mortar(P_fine2coarse,
@@ -1777,6 +1942,13 @@ namespace dd_stokes
       file_y[side].close(); // close the file
       file_residual_y[side].close();
       file_exact_y[side].close();
+      //for mortar will be empty if mortar_flag is false
+      file_mortar[side].close(); // close the file
+      file_residual_mortar[side].close();
+      file_exact_mortar[side].close();
+      file_y_mortar[side].close(); // close the file
+      file_residual_y_mortar[side].close();
+      file_exact_y_mortar[side].close();
     }
 
     if (mortar_flag)
@@ -2472,9 +2644,6 @@ namespace dd_stokes
     }
     int interface_dofs_size; 
     int tmp;
-    pcout << "n_processes = " << n_processes << std::endl;
-    // template <int dim>
-    // pcout << "dim = " << dim << std::endl;
     if (dim == 2)
     {
       if (this_mpi % 2 == 0)
@@ -2630,42 +2799,42 @@ namespace dd_stokes
   }
 
 
-  template <int dim>
-  void
-  MixedStokesProblemDD<dim>::output_interface_results(const unsigned int cycle, const unsigned int &gmres_iteration, BlockVector<double> &plot_lambda) const
-  {
-    const unsigned int this_mpi =
-      Utilities::MPI::this_mpi_process(mpi_communicator);
-    // const unsigned int n_processes =
-    //   Utilities::MPI::n_mpi_processes(mpi_communicator);
-    std::vector<std::string> solution_names(dim, "lambda"+Utilities::int_to_string(cycle));
-    solution_names.emplace_back("pressure");
+  // template <int dim>
+  // void
+  // MixedStokesProblemDD<dim>::output_interface_results(const unsigned int cycle, const unsigned int &gmres_iteration, BlockVector<double> &plot_lambda) const
+  // {
+  //   const unsigned int this_mpi =
+  //     Utilities::MPI::this_mpi_process(mpi_communicator);
+  //   // const unsigned int n_processes =
+  //   //   Utilities::MPI::n_mpi_processes(mpi_communicator);
+  //   std::vector<std::string> solution_names(dim, "lambda"+Utilities::int_to_string(cycle));
+  //   solution_names.emplace_back("pressure");
 
-    std::vector<DataComponentInterpretation::DataComponentInterpretation>
-      data_component_interpretation(
-        dim, DataComponentInterpretation::component_is_part_of_vector);
-    data_component_interpretation.push_back(
-      DataComponentInterpretation::component_is_scalar);
+  //   std::vector<DataComponentInterpretation::DataComponentInterpretation>
+  //     data_component_interpretation(
+  //       dim, DataComponentInterpretation::component_is_part_of_vector);
+  //   data_component_interpretation.push_back(
+  //     DataComponentInterpretation::component_is_scalar);
 
-    DataOut<dim> data_out;
-    data_out.attach_dof_handler(dof_handler);
+  //   DataOut<dim> data_out;
+  //   data_out.attach_dof_handler(dof_handler);
 
-    data_out.add_data_vector(plot_lambda,
-                             solution_names,
-                             DataOut<dim>::type_dof_data,
-                             data_component_interpretation);
-                data_out.build_patches();
+  //   data_out.add_data_vector(plot_lambda,
+  //                            solution_names,
+  //                            DataOut<dim>::type_dof_data,
+  //                            data_component_interpretation);
+  //               data_out.build_patches();
                   
-                DataOutBase::VtkFlags vtk_flags;
-                vtk_flags.compression_level = DataOutBase::CompressionLevel::best_speed;
-                data_out.set_flags(vtk_flags);
-                std::ofstream output(
-                    "interface_data-" + Utilities::int_to_string(this_mpi)
-                    + "_" + Utilities::int_to_string(cycle, 1) 
-                    + "_" + Utilities::int_to_string(gmres_iteration, 3) 
-                    + ".vtu");
-                data_out.write_vtu(output);
-  }
+  //               DataOutBase::VtkFlags vtk_flags;
+  //               vtk_flags.compression_level = DataOutBase::CompressionLevel::best_speed;
+  //               data_out.set_flags(vtk_flags);
+  //               std::ofstream output(
+  //                   "interface_data-" + Utilities::int_to_string(this_mpi)
+  //                   + "_" + Utilities::int_to_string(cycle, 1) 
+  //                   + "_" + Utilities::int_to_string(gmres_iteration, 3) 
+  //                   + ".vtu");
+  //               data_out.write_vtu(output);
+  // }
 
 
 
@@ -2712,6 +2881,7 @@ namespace dd_stokes
       {
         gmres_iteration = 0;
         interface_dofs.clear();
+        interface_dofs_fe.clear();
         interface_dofs_find_neumann.clear();
 
         if (cycle == 0)
@@ -2863,14 +3033,23 @@ namespace dd_stokes
             if (mortar_flag)
               output_dof_results_mortar(cycle);
                 pcout << "dof mortar output written" << std::endl;
-            
-            // pcout << "Starting CG iterations..."
-            //       << "\n";
-            // local_cg(maxiter, cycle);
-            
-            pcout << "Starting GMRES iterations..."
+
+            if (iter_meth_flag == 0)
+            {
+              pcout << "Starting CG iterations..."
                   << "\n";
-            local_gmres(maxiter, cycle);
+              local_cg(maxiter, cycle);
+            }
+            else if (iter_meth_flag == 1)
+            {
+              pcout << "Starting GMRES iterations..."
+                  << "\n";
+              local_gmres(maxiter, cycle);
+            }
+            else
+            {
+              AssertThrow(false, ExcMessage("Unknown iterative method!"));
+            }
             compute_errors(cycle, reps);
 
             MPI_Barrier(mpi_communicator);
@@ -2886,6 +3065,7 @@ namespace dd_stokes
             faces_on_interface.clear();
             faces_on_interface_mortar.clear();
             interface_dofs.clear();
+            interface_dofs_fe.clear();
             interface_fe_function.clear();
             interface_fe_function_mortar.clear();
             if (mortar_flag)
@@ -2923,7 +3103,7 @@ namespace dd_stokes
     convergence_table.set_tex_caption("cells", "\\# cells");
     convergence_table.set_tex_caption("h", "\\ h");
     // convergence_table.set_tex_caption("dofs", "\\# dofs");
-    convergence_table.set_tex_caption("interface_dofs", "\\# interace dofs");
+    convergence_table.set_tex_caption("interface_dofs", "\\# interface dofs");
     convergence_table.set_tex_caption("cg_iter", "cg iter");
     convergence_table.set_tex_caption("u_order", "u order");
     convergence_table.set_tex_caption("p_order", "p order");
@@ -3026,7 +3206,6 @@ namespace dd_stokes
     convergence_table_total.set_tex_format("interface_dofs", "r");
     // convergence_table_total.set_tex_format("dofs_m", "r");
 
-    
     convergence_table_total.write_text(std::cout);
 
     std::string conv_filename = std::string("../output/convg_table_total/convergence_total") + ".tex";

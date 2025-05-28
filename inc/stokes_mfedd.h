@@ -37,8 +37,10 @@ namespace dd_stokes
   {
   public:
   MixedStokesProblemDD(const unsigned int degree,
-            const unsigned int mortar_flag   = 0,
-            const unsigned int mortar_degree = 0);
+                       const bool ess_dir_flag          = 0,
+                       const bool mortar_flag           = 0,
+                       const unsigned int mortar_degree = 0,
+                       const unsigned int iter_meth_flag= 0);
 
     void
     run(const unsigned int                            refine,
@@ -111,8 +113,8 @@ namespace dd_stokes
     void
     output_results(const unsigned int cycle) const;
 
-    void
-    output_interface_results(const unsigned int cycle, const unsigned int &gmres_iteration, BlockVector<double> &plot_lambda) const;
+    // void
+    // output_interface_results(const unsigned int cycle, const unsigned int &gmres_iteration, BlockVector<double> &plot_lambda) const;
 
     //For implementing GMRES
     void
@@ -135,8 +137,10 @@ namespace dd_stokes
 
     // FE degree and DD parameters
     const unsigned int degree;
+    const bool ess_dir_flag;
+    const bool mortar_flag;
     const unsigned int mortar_degree;
-    const unsigned int mortar_flag;
+    const unsigned int iter_meth_flag;
     unsigned int       cg_iteration;
     double             tolerance;
     unsigned int       qdegree;
@@ -157,6 +161,8 @@ namespace dd_stokes
     std::vector<unsigned int>              faces_on_interface;
     std::vector<unsigned int>              faces_on_interface_mortar;
     std::vector<std::vector<unsigned int>> interface_dofs;
+    std::vector<std::vector<unsigned int>> interface_dofs_fe;
+    // std::vector<std::vector<double>> plot_lambda;
     // std::vector<std::vector<double>> interface_data;
     std::vector<double> interface_dofs_total;
     std::vector<std::vector<unsigned int>> interface_dofs_find_neumann;
@@ -165,6 +171,7 @@ namespace dd_stokes
     std::vector<unsigned int> repeated_dofs_neumann_corner;
 
     unsigned long n_velocity_interface;
+    unsigned long n_velocity_interface_fe;
 
     // Subdomain coordinates (assuming logically rectangular blocks)
     Point<dim> p1;
@@ -198,16 +205,19 @@ namespace dd_stokes
     BlockVector<double> solution_star_stokes;
     BlockVector<double> solution;
     BlockVector<double> exact_solution_at_nodes;
-    std::vector<BlockVector<double>> exact_normal_stress_at_nodes;
+    std::vector<BlockVector<double>> exact_normal_stress_at_nodes_fe;
+    std::vector<BlockVector<double>> exact_normal_stress_at_nodes_mortar;
     BlockVector<double> system_rhs_bar_stokes;
     BlockVector<double> system_rhs_star_stokes;
     std::vector<BlockVector<double>> interface_fe_function;
+    std::vector<BlockVector<double>> interface_fe_function_fe;
     // BlockVector<double> interface_fe_function;
 
-    BlockVector<double> plot_lambda;
+    
 
     // Mortar data structures
     std::vector<BlockVector<double>>   interface_fe_function_mortar;
+    std::vector<BlockVector<double>>   interface_fe_function_mortar_fe;
     BlockVector<double>                solution_bar_mortar;
     BlockVector<double>                solution_star_mortar;
     std::vector<BlockVector<double>>   multiscale_basis;

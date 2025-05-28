@@ -29,8 +29,9 @@ main(int argc, char *argv[])
       
       Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
       MultithreadInfo::set_thread_limit(4);
-
-      std::cout << "Thread limit: " << MultithreadInfo::n_threads() << std::endl;
+      const unsigned int this_mpi =
+      Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
+      std::cout << "Thread limit: " << MultithreadInfo::n_threads() << ", this_mpi = " << this_mpi << std::endl;
 
       // Mortar mesh parameters (non-matching checkerboard)
       int processes = 15;
@@ -40,7 +41,7 @@ main(int argc, char *argv[])
       // mesh_m2d[2] = {3, 3};
       // mesh_m2d[3] = {2, 2};//this one
       // mesh_m2d[4] = {1, 1};
-      for (int i = 0; i < mesh_m2d.size(); ++i)
+      for (unsigned int i = 0; i < mesh_m2d.size(); ++i)
         {
           mesh_m2d[i] = {2, 2};
         }
@@ -69,20 +70,66 @@ main(int argc, char *argv[])
       std::vector<unsigned int> boundary_m2d(4);
       // enter 0 for dirichlet and 1 for neumann boundary
       //{bottom, right, top, left}
-      boundary_m2d.assign({0, 1, 0, 1}); 
+      boundary_m2d.assign({1, 0, 0, 0}); 
       
       std::vector<unsigned int> boundary_m3d(6);
       boundary_m3d.assign({0, 0, 0, 0, 0, 0});
 
-      MixedStokesProblemDD<2> no_mortars(1);
-      MixedStokesProblemDD<2> mortars(1, 1, 1);
+      // MixedStokesProblemDD(const unsigned int degree,
+      //                  const bool ess_dir_flag          = 0, // 0 means Nitche, 1 means essential dir
+      //                  const bool mortar_flag           = 0, // 0 means no mortar, 1 means mortar
+      //                  const unsigned int mortar_degree = 0
+      //                  const unsigned int iter_meth_flag= 0); // 0 means CG, 1 means GMRES
+      std::vector<unsigned int> tmp(4);
+      char tmp1, tmp2;
+      MPI_Barrier(MPI_COMM_WORLD);
+      if (this_mpi == 0)
+      {
+        std::cout << "Running Stokes Domain Decomposition with Mortar Finite Elements \n" 
+                  << "This is a 2D example with matching grids.\n"
+                  << "ess_dir (y/n): " << std::endl;
+        {
+          std::cin  >> tmp1;
+          if (tmp1 == 'y')
+            tmp[0] = 1; // essential dirichlet
+          else if (tmp1 == 'n')
+            tmp[0] = 0; // Nitsche
+          else
+            AssertThrow(false, ExcMessage("Invalid input for essential dirichlet flag. Use 'y' or 'n'."));
+        }
+        std::cout << "\nmortar (y/n): " << std::endl;
+        {
+          std::cin  >> tmp2;
+          if (tmp2 == 'y')
+          {
+            tmp[1] = 1; // mortar
+            std::cout << "\nmortar degree:" << std::endl;
+            std::cin  >> tmp[2];
+          } 
+          else if (tmp2 == 'n')
+          {
+            tmp[1] = 0; // no mortar
+            tmp[2] = 0; // no mortar degree if no mortar
+          }  
+          else
+            AssertThrow(false, ExcMessage("Invalid input for mortar flag. Use 'y' or 'n'."));
+        }
+        std::cout << "\niterative method (0 for CG, 1 for GMRES): " << std::endl;
+        std::cin  >> tmp[3];
+      }
+      // MPI_Barrier(MPI_COMM_WORLD);
+      // Broadcast from root (rank 0) to all
+      MPI_Bcast(&tmp[0], 4, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+      MixedStokesProblemDD<2> stokes(1, tmp[0], tmp[1], tmp[2], tmp[3]);
+      MixedStokesProblemDD<2> mortars(1, tmp[0], tmp[1], tmp[2], tmp[3]);
+
 
       std::string name1("M0");
       std::string name2("M1");
       std::string name3("M2");
       std::string name4("M3");
 
-      no_mortars.run(5, boundary_m2d, mesh_m2d, 1.e-9, name1, 500, 11);
+      stokes.run(5, boundary_m2d, mesh_m2d, 1.e-10, name1, 100, 11);
       // mortars.run(5, boundary_m2d, mesh_m2d, 1.e-8, name1, 500, 11);
     }
 

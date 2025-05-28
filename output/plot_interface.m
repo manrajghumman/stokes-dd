@@ -7,15 +7,25 @@ j = input(['Enter the edge number \n' ...
     '(1, 2, 3, 4 stand for bottom, right,\n top, left\n' ...
     'Note: The edge must be an interface \nor you will get error): ']) - 1;
 % input_refinement
-k = input('Enter the refinement level \n( from 0 meaning no refinement and \n4 the highest refinement): ') - 1;
+k = input('Enter the refinement level \n( from 1 meaning no refinement and \n4 the highest refinement): ') - 1;
+% input_grid (mortar/fe)
+grid = input(['Enter grid (mortar = 0 or fe = 1): ']);
 
-data = readmatrix('interface_data/lambda'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
-data_residual = readmatrix('interface_data/residual'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
-data_true = readmatrix('interface_data/lambda_exact'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
+if grid == 0
+    dir = 'interface_data/mortar';
+elseif grid == 1
+    dir = 'interface_data/fe';
+else 
+    error ("enter mortar = 0 or 1");
+end
 
-data_y = readmatrix('interface_data/lambda_y'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
-data_residual_y = readmatrix('interface_data/residual_y'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
-data_true_y = readmatrix('interface_data/lambda_exact_y'+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
+data = readmatrix(dir+"/lambda"+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
+data_residual = readmatrix(dir + "/residual"+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
+data_true = readmatrix(dir + "/lambda_exact"+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
+
+data_y = readmatrix(dir + "/lambda_y"+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
+data_residual_y = readmatrix(dir + "/residual_y"+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
+data_true_y = readmatrix(dir + "/lambda_exact_y"+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
 
 num_timesteps = size(data, 1);
 num_values_per_timestep = size(data, 2);
