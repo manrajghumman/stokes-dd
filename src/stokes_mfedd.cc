@@ -2596,7 +2596,10 @@ namespace dd_stokes
     convergence_table.add_value("u_order", order_u);
     convergence_table.add_value("p_L2", p_l2_error);
     convergence_table.add_value("p_order", order_p);
-    convergence_table.add_value("cg_iter", gmres_iteration);
+    if (iter_meth_flag == 1)
+      convergence_table.add_value("gmres_iter", gmres_iteration);
+    else
+      convergence_table.add_value("cg_iter", gmres_iteration);
     convergence_table.add_value("residual", residual);
     // convergence_table.add_value("u_H1", u_H1_error);
     // convergence_table.add_value("p_H1", p_H1_error);
@@ -2611,7 +2614,10 @@ namespace dd_stokes
     convergence_table_total.add_value("u_order", order_u_total);
     convergence_table_total.add_value("p_L2", p_l2_error_total);
     convergence_table_total.add_value("p_order", order_p_total);
-    convergence_table_total.add_value("cg_iter", gmres_iteration);
+    if (iter_meth_flag == 1)
+      convergence_table_total.add_value("gmres_iter", gmres_iteration);
+    else
+      convergence_table_total.add_value("cg_iter", gmres_iteration);
     convergence_table_total.add_value("residual", residual);
 
     u_l2_error_old = u_l2_error;
@@ -2984,7 +2990,10 @@ namespace dd_stokes
     convergence_table.set_tex_caption("h", "\\ h");
     // convergence_table.set_tex_caption("dofs", "\\# dofs");
     convergence_table.set_tex_caption("interface_dofs", "\\ dofs");
-    convergence_table.set_tex_caption("cg_iter", "cg iter");
+    if (iter_meth_flag == 1)
+      convergence_table.set_tex_caption("gmres_iter", "gmres iter");
+    else
+      convergence_table.set_tex_caption("cg_iter", "cg iter");
     convergence_table.set_tex_caption("u_order", "u order");
     convergence_table.set_tex_caption("p_order", "p order");
     convergence_table.set_tex_caption("residual", "residual");
@@ -3075,7 +3084,10 @@ namespace dd_stokes
     convergence_table_total.set_tex_caption("h", "\\ h");
     // convergence_table_total.set_tex_caption("dofs", "\\# dofs");
     convergence_table_total.set_tex_caption("interface_dofs", "\\ dofs");
-    convergence_table_total.set_tex_caption("cg_iter", "cg iter");
+    if (iter_meth_flag == 1)
+      convergence_table_total.set_tex_caption("gmres_iter", "gmres iter");
+    else
+      convergence_table_total.set_tex_caption("cg_iter", "cg iter");
     convergence_table_total.set_tex_caption("u_order", "u order");
     convergence_table_total.set_tex_caption("p_order", "p order");
     convergence_table_total.set_tex_caption("residual", "residual");
