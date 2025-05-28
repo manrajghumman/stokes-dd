@@ -33,7 +33,7 @@ main(int argc, char *argv[])
       Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
       const unsigned int n_processes =
       Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
-      std::cout << "Thread limit: " << MultithreadInfo::n_threads() << ", this_mpi = " << this_mpi << std::endl;
+      // std::cout << "Thread limit: " << MultithreadInfo::n_threads() << ", this_mpi = " << this_mpi << std::endl;
 
       // Mortar mesh parameters (non-matching checkerboard)
       // int processes = 15;
@@ -45,7 +45,7 @@ main(int argc, char *argv[])
       // mesh_m2d[4] = {1, 1};
       for (unsigned int i = 0; i < mesh_m2d.size(); ++i)
         {
-          mesh_m2d[i] = {2, 3};
+          mesh_m2d[i] = {2, 2};
         }
         // uncomment below and change manually to change
       // mesh_m2d[0] = {2, 2};
