@@ -442,33 +442,6 @@ namespace dd_stokes
                               * fe_values.JxW(q); // dx
             }
         }
-        // // Entering Neumann Condition
-        // for (const auto &face : cell->face_iterators())
-        //   if (face->at_boundary() && (face->boundary_id() == 7))
-        //     {
-        //       fe_face_values.reinit(cell, face);
-        //       stress_tensor.value_list(fe_face_values.get_quadrature_points(), 
-        //                           stress_tensor_values);  
-
-        //       for (unsigned int q_point = 0; q_point < n_face_q_points;
-        //            ++q_point)
-        //         {
-        //           for (unsigned int k = 0; k < dofs_per_cell; ++k)
-        //           {
-        //             phi_u[k]     = fe_face_values[velocities].value(k, q_point);
-        //           }
-        //           const Tensor<1,2> neumann_value =
-        //             (stress_tensor_values[q_point] *
-        //              fe_face_values.normal_vector(q_point));
-
-        //           for (unsigned int i = 0; i < dofs_per_cell; ++i)
-        //             local_rhs(i) +=
-        //               (phi_u[i] *                      // phi_i(x_q)
-        //                neumann_value) *                // g(x_q)
-        //                fe_face_values.JxW(q_point);    // dx
-        //         }
-        //     }
-        // // Ending Neumann Condition
         
         //Entering boundary integrals
         for (const auto &face : cell->face_iterators())
@@ -561,9 +534,6 @@ namespace dd_stokes
                                                  local_dof_indices,
                                                  system_matrix,
                                                  system_rhs_bar_stokes);
-          // constraints_star.distribute_local_to_global(local_matrix,
-          //                                             local_dof_indices,
-          //                                             system_matrix_star);
         }
         else
         {
@@ -577,10 +547,6 @@ namespace dd_stokes
         }
         
       }
-      // system_matrix_star.copy_from(system_matrix);
-      // system_matrix.m()
-      // system_matrix.print(std::cout);
-      // system_rhs_bar_stokes.print(std::cout);
   }
 
   
@@ -633,19 +599,11 @@ namespace dd_stokes
                 side = cell_fe->face(face_n)->boundary_id() - 1;
                 for (auto el : local_face_dof_indices_fe)
                 {
-                  // pcout << "el = " << el << std::endl;
                   if (el < n_velocity_interface_fe){
-                      // pcout << "el = " << el << std::endl;
-                      if (std::find (interface_dofs_fe[side].begin(), interface_dofs_fe[side].end(), el) 
-                                                                    == interface_dofs_fe[side].end()){
-                                                                        interface_dofs_fe[side].push_back(el);
-                                                                        // interface_dofs_total.push_back(el);
-                                                                    }
-                      
-                      // if (std::find (interface_dofs_find_neumann[side].begin(), interface_dofs_find_neumann[side].end(), el) 
-                      //                                               == interface_dofs_find_neumann[side].end()){
-                      //                                                   interface_dofs_find_neumann[side].push_back(el);
-                                                                    // }
+                    if (std::find (interface_dofs_fe[side].begin(), interface_dofs_fe[side].end(), el) 
+                                                                  == interface_dofs_fe[side].end()){
+                                                                      interface_dofs_fe[side].push_back(el);
+                                                                  }
                   }
                 }
               }
@@ -667,9 +625,7 @@ namespace dd_stokes
               side = cell->face(face_n)->boundary_id() - 1;
               for (auto el : local_face_dof_indices)
               {
-                // pcout << "el = " << el << std::endl;
                 if (el < n_velocity_interface){
-                    // pcout << "el = " << el << std::endl;
                     if (std::find (interface_dofs[side].begin(), interface_dofs[side].end(), el) 
                                                                   == interface_dofs[side].end()){
                                                                       interface_dofs[side].push_back(el);
@@ -705,37 +661,6 @@ namespace dd_stokes
     // Extracting the neumann dofs on the interface corner point shared between subdomains  
     find_interface_dofs_neumann_corner<dim>(interface_dofs_find_neumann, 
                           repeated_dofs_neumann_corner);
-
-    //Calculating total interface_dofs
-    // unsigned int sum = 0;
-    // for (const auto& n_dofs : interface_dofs){
-    //   for (int num: n_dofs){
-    //     sum += 1;
-    //   }
-    // }
-    // pcout << "interface_dofs = " << sum << std::endl;
-    // pcout << "interface_dofs_total = " << interface_dofs_total.size() << std::endl;
-
-    // for (side = 0; side < n_faces_per_cell; ++side)
-    // {
-    //   if (this_mpi == 0)
-    //   {
-    //     std::cout << "side = " << side << ", mpi = " << this_mpi
-    //               << ", interface_dofs[side].size() = " << interface_dofs[side].size()
-    //               << std::endl;
-    //   }
-    //   if (this_mpi == 1)
-    //   {
-    //     std::cout << "side = " << side << ", mpi = " << this_mpi
-    //               << ", interface_dofs[side].size() = " << interface_dofs[side].size()
-    //               << std::endl;
-    //   }
-    // }
-
-    // if (this_mpi == 1)
-    //   for (int m = 0; m < repeated_dofs_neumann_corner.size(); ++m)
-    //     std::cout << "repeated_dofs_neumann_corner = " << repeated_dofs_neumann_corner[m] << std::endl;
-
   }
 
 
@@ -747,10 +672,6 @@ namespace dd_stokes
   {
     TimerOutput::Scope t(computing_timer, "Assemble RHS star");
     system_rhs_star_stokes = 0;
-    // const unsigned int this_mpi =
-    //   Utilities::MPI::this_mpi_process(mpi_communicator);
-
-    // std::cout << "this mpi = " << this_mpi << std::endl;
 
     const unsigned int n_face_q_points = fe_face_values.get_quadrature().size();
     const unsigned int dofs_per_cell   = fe.dofs_per_cell;
@@ -816,16 +737,6 @@ namespace dd_stokes
             for (unsigned int i = 0; i < dofs_per_cell; ++i)
               system_rhs_star_stokes(local_dof_indices[i]) += local_rhs(i);
           }
-        
-        // for (unsigned int i = 0; i < dofs_per_cell; ++i)
-        //   for (unsigned int side = 0; side < n_faces_per_cell; ++side){
-        //     if (std::find (interface_dofs[side].begin(), interface_dofs[side].end(), 
-        //     local_dof_indices[i]) != interface_dofs[side].end())//enters this statement if local_dof_indices[i] belongs to interface_dofs[side]
-        //       system_rhs_star_stokes(local_dof_indices[i]) += local_rhs(i);
-        //   } 
-        // constraints_star.distribute_local_to_global(local_rhs,
-        //                                             local_dof_indices,
-        //                                             system_rhs_star_stokes);
       }
   }
 
@@ -897,9 +808,7 @@ namespace dd_stokes
   	assert(h.size()>k+1); //size should be k+2
   	double temp;
   	for( int i=0; i<=k-1; ++i){
-
   		temp= cs[i]* h[i]+ sn[i]*h[i+1];
-      // pcout<<"\n temp value is: "<<temp<<"\n";
   		h[i+1] = -sn[i]*h[i] + cs[i]*h[i+1];
   		h[i] = temp;
   	}
@@ -915,8 +824,6 @@ namespace dd_stokes
   	 //adding cs_k and sn_k as cs(k) and sn(k)
   	 cs.push_back(cs_k);
   	 sn.push_back(sn_k);
-   	// pcout<<"\n cs value is: "<<cs[k]<<"\n";
-  	// pcout<<"\n sn value is: "<<sn[k]<<"\n";
   }
 
 
@@ -1043,24 +950,11 @@ namespace dd_stokes
     //GMRES structures and parameters
     std::vector<double>	sn;
     std::vector<double>	cs;
-  //      std::vector<double>	e1;
     std::vector<std::vector<double>>	H;
   //      std::vector<double> error_iter_side(n_faces_per_cell); //saves error in each iteration
     std::vector<double> e_all_iter; //error will be saved here after each iteration
     std::vector<double>	Beta; //beta for each side
     double combined_error_iter =0; //sum of error_iter_side
-    
-
-
-
-
-
-
-    // // CG structures and parameters
-    // std::vector<double> alpha_side(n_faces_per_cell, 0),
-    //   alpha_side_d(n_faces_per_cell, 0), beta_side(n_faces_per_cell, 0),
-    //   beta_side_d(n_faces_per_cell, 0); //to be deleted
-    // std::vector<double> alpha(2, 0), beta(2, 0); //to be deleted
 
     std::vector<std::vector<double>> r(n_faces_per_cell); //to be deleted probably: p?
     std::vector<double> r_norm_side(n_faces_per_cell,0);
@@ -1069,11 +963,6 @@ namespace dd_stokes
 
     //defing q  to push_back to Q (reused in Arnoldi algorithm)
     std::vector<std::vector<double>> q(n_faces_per_cell);
-
-    // solve_bar();
-
-    // interface_fe_function.reinit(solution_bar_stokes);
-
 
 
     double l0 = 0.0;
@@ -1092,13 +981,7 @@ namespace dd_stokes
           r[side].resize(interface_dofs[side].size(), 0);
           std::vector<double> r_receive_buffer(r[side].size());
 
-
-
           // Right now it is effectively solution_bar - A\lambda (0)
-            // for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-            //   r[side][i] = get_normal_direction(side) *
-            //                 solution_bar_stokes[interface_dofs[side][i]] -
-            //               get_normal_direction(side) * l0;
           if (mortar_flag)
           {
             for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
@@ -1209,7 +1092,6 @@ namespace dd_stokes
                             dof_handler,
                             interface_fe_function[side]);
               interface_fe_function[side].block(1) = 0;//this is probably because of the projection
-              // pcout << "did we get here?? 1" << std::endl;
             }
         }
         else
@@ -1219,23 +1101,12 @@ namespace dd_stokes
               interface_fe_function[side][interface_dofs[side][i]] = 
                 interface_data[side][i];
         }
-            // for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-            //   for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-            //     interface_fe_function[side][interface_dofs[side][i]] =
-            //       interface_data[side][i];
 
         // interface_fe_function.block(1) = 0;
         assemble_rhs_star(fe_face_values);
         solve_star();
-
-        // //Interface data for plotting, currently works only in 2 dim
-        // plot_approx_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
-        //   neighbors, lambda, plot, plot_y, file, file_y);
-        // plot_exact_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
-        //   neighbors, exact_normal_stress_at_nodes, plot_exact, plot_exact_y, file_exact, file_exact_y);
-        // plot_residual_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
-        //   neighbors, r, plot_residual, plot_residual_y, file_residual, file_residual_y); // residual plotting is not working yet 
         gmres_iteration++;
+
         if (mortar_flag)
           project_mortar(P_fine2coarse,
                         dof_handler,
@@ -1247,7 +1118,6 @@ namespace dd_stokes
                         solution_star_mortar);
 
         //defing q  to push_back to Q (Arnoldi algorithm)
-  //          std::vector<std::vector<double>> q(n_faces_per_cell);
         //defing h  to push_back to H (Arnoldi algorithm)
         std::vector<double> h(k_counter+2,0);
 
@@ -1371,7 +1241,9 @@ namespace dd_stokes
 
         //saving the combined error at each iteration
         e_all_iter.push_back(combined_error_iter);
-
+        
+        //Calculating the result from H ,Q_side and Beta
+        //Finding y which has size k_counter using back sove function
         y.resize(k_counter+1,0);
         assert(Beta.size()==k_counter+2); // gives error if exceed maxiter, do break if size is too much and going to exceed maxiter
         back_solve(H,Beta,y);
@@ -1465,30 +1337,6 @@ namespace dd_stokes
         k_counter++;
       }//end of the while loop(k_counter<max iteration)
 
-    //Calculating the final result from H ,Q_side and Beta
-    //Finding y which has size k_counter using back sove function
-    // // std::vector<double> y;
-    // if (k_counter < maxiter)
-    // {
-    //   y.resize(k_counter+1,0);
-    //   assert(Beta.size()==k_counter+2); // gives error if exceed maxiter, do break if size is too much and going to exceed maxiter
-    //   back_solve(H,Beta,y);
-    // }
-    // else 
-    // {
-    //  y.resize(k_counter,0);
-    //   assert(Beta.size()==k_counter+1); // gives error if exceed maxiter, do break if size is too much and going to exceed maxiter
-    //   back_solve(H,Beta,y);
-    // }
-    
-    // //updating X(lambda) to get the final lambda value before solving the final star problem
-    // for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-    //         if (neighbors[side] >= 0)
-    //             for (unsigned int i = 0; i < interface_data[side].size(); ++i)
-    //               for(unsigned int j=0; j<=k_counter; ++j)
-    //                 lambda[side][i] += Q_side[side][j][i]*y[j];
-    // //we can replace lambda here and just add interface_data(skip one step below)
-
     for (unsigned int side=0; side < n_faces_per_cell; ++side)
     {
       file[side].close(); // close the file
@@ -1506,6 +1354,7 @@ namespace dd_stokes
       file_exact_y_mortar[side].close();
     }
 
+    //we can replace lambda here and just add interface_data(skip one step below)
     if (mortar_flag)
     {
       interface_data = lambda;
@@ -1536,13 +1385,6 @@ namespace dd_stokes
           for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
             interface_fe_function[side][interface_dofs[side][i]] = interface_data[side][i];
     }
-
-        // interface_data = lambda;
-        // for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-        //   for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-        //     interface_fe_function[side][interface_dofs[side][i]] =
-        //       interface_data[side][i];
-
 
     assemble_rhs_star(fe_face_values);
     solve_star();
@@ -1657,14 +1499,6 @@ namespace dd_stokes
           interface_fe_function_mortar_fe[side].reinit(solution_bar_mortar);
         }
       
-      // pcout << "fe_mortar = " << 1 << ", n_components = " << fe_mortar.n_components()
-      //       // << ", \nn_function_components = " << n_function_components
-      //       // << ", fe_is_system = " << fe_is_system
-      //       << ", fe_is_primitive = " << fe_mortar.is_primitive()
-      //       << std::endl;
-      // pcout << "fe = " << 1 << ", n_components = " << fe.n_components()
-      //       << ", fe_is_primitive = " << fe.is_primitive()
-      //       << std::endl;
       project_mortar(P_fine2coarse,
                     dof_handler,
                     solution_bar_stokes,
@@ -1674,28 +1508,6 @@ namespace dd_stokes
                     dof_handler_mortar,
                     solution_bar_mortar);
     }
-    // MPI_Barrier(mpi_communicator);
-    // if (this_mpi == 0 && cycle == 0)
-    //   for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-    //   {
-    //     std::cout << "side = " << side << ", mpi = " << this_mpi
-    //               << "\n interface_dofs[side].size()" << interface_dofs[side].size()
-    //               << std::endl;
-    //               if (interface_dofs[side].size() != 0)
-    //                 for (unsigned int m = 0; m < interface_dofs[side].size(); ++m)
-    //                   std::cout << interface_dofs[side][m] << std::endl;           
-    //   }
-    // MPI_Barrier(mpi_communicator);
-    // if (this_mpi == 1 && cycle == 0)
-    // for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-    // {
-    //   std::cout << "side = " << side << ", mpi = " << this_mpi
-    //             << "\n interface_dofs[side].size()" << interface_dofs[side].size()
-    //             << std::endl;
-    //             if (interface_dofs[side].size() != 0)
-    //               for (unsigned int m = 0; m < interface_dofs[side].size(); ++m)
-    //                 std::cout << interface_dofs[side][m] << std::endl;           
-    // }
 
     // CG structures and parameters
     std::vector<double> alpha_side(n_faces_per_cell, 0),
@@ -1739,22 +1551,6 @@ namespace dd_stokes
                            get_normal_direction(side) * l0;
             }
           }
-          // if (this_mpi == 0)
-          // {
-          //   std::cout << "side = " << side << ", mpi = " << this_mpi
-          //             << ", interface_dofs[side].size() = " << interface_dofs[side].size()
-          //             << ", r[side].size() = " << r[side].size()
-          //             << ", r_receive_buffer.size() = " << r_receive_buffer.size()
-          //             << std::endl;
-          // }
-          // if (this_mpi == 1)
-          // {
-          //   std::cout << "side = " << side << ", mpi = " << this_mpi
-          //             << ", interface_dofs[side].size() = " << interface_dofs[side].size()
-          //             << ", r[side].size() = " << r[side].size()
-          //             << ", r_receive_buffer.size() = " << r_receive_buffer.size()
-          //             << std::endl;
-          // }
 
           MPI_Send(&r[side][0],// start sending starting from this element
                    r[side].size(),// send these many of them
@@ -1775,36 +1571,6 @@ namespace dd_stokes
               r[side][i] += r_receive_buffer[i];
             }
         }
-
-    // if (this_mpi == 0 && cycle == 0)
-    //   for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-    //   {
-    //     std::cout << "side = " << side << ", mpi = " << this_mpi
-    //               << "\n interface_dofs[side].size()" << interface_dofs[side].size()
-    //               << std::endl;
-    //               if (interface_dofs[side].size() != 0)
-    //                 for (int m = 0; m < interface_dofs[side].size(); ++m)
-    //                   std::cout << interface_dofs[side][m] << std::endl;           
-    //   }
-    // if (this_mpi == 1 && cycle == 0)
-    // for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-    // {
-    //   std::cout << "side = " << side << ", mpi = " << this_mpi
-    //             << "\n interface_dofs[side].size()" << interface_dofs[side].size()
-    //             << std::endl;
-    //             if (interface_dofs[side].size() != 0)
-    //               for (int m = 0; m < interface_dofs[side].size(); ++m)
-    //                 std::cout << interface_dofs[side][m] << std::endl;           
-    // }
-    
-    // constant_residual_two<dim>(interface_dofs, neighbors, 
-    //                     repeated_dofs, repeated_dofs_neumann, r);
-
-    // average_residual_two<dim>(interface_dofs, neighbors, 
-    //                     repeated_dofs, repeated_dofs_neumann, r);
-    
-    // average_residual_three<dim>(interface_dofs, neighbors, 
-    //                     repeated_dofs, repeated_dofs_neumann, r);
                   
     p = r;
 
@@ -1851,15 +1617,11 @@ namespace dd_stokes
             interface_fe_function[side][interface_dofs[side][i]] = 
               interface_data[side][i];
       }
-      // pcout << "did we get here?? 2" << std::endl;
       assemble_rhs_star(fe_face_values);
-      // pcout << "did we get here??  3" << std::endl;
       solve_star();
-      // pcout << "did we get here??  4" << std::endl;
       gmres_iteration++;
-      // pcout << "did we get here??  5" << std::endl;
+
       //Interface data for plotting, currently works only in 2 dim
-      
       if (mortar_flag)
       {
         // for mortar grid
@@ -2796,7 +2558,6 @@ namespace dd_stokes
     else
       throw std::runtime_error("dim = 3 not yet implemented!");
     
-    interface_dofs_total.size();
     // convergence_table.add_value("cycle", cycle);
     convergence_table.add_value("cells", n_active_cells);
     convergence_table.add_value("h", "1/"+Utilities::int_to_string(n));
@@ -2908,8 +2669,6 @@ namespace dd_stokes
   {
     const unsigned int this_mpi =
       Utilities::MPI::this_mpi_process(mpi_communicator);
-    // const unsigned int n_processes =
-    //   Utilities::MPI::n_mpi_processes(mpi_communicator);
     std::vector<std::string> solution_names(dim, "velocity");
     solution_names.emplace_back("pressure");
 
@@ -2934,46 +2693,6 @@ namespace dd_stokes
     data_out.write_vtk(output);
   }
 
-
-  // template <int dim>
-  // void
-  // MixedStokesProblemDD<dim>::output_interface_results(const unsigned int cycle, const unsigned int &gmres_iteration, BlockVector<double> &plot_lambda) const
-  // {
-  //   const unsigned int this_mpi =
-  //     Utilities::MPI::this_mpi_process(mpi_communicator);
-  //   // const unsigned int n_processes =
-  //   //   Utilities::MPI::n_mpi_processes(mpi_communicator);
-  //   std::vector<std::string> solution_names(dim, "lambda"+Utilities::int_to_string(cycle));
-  //   solution_names.emplace_back("pressure");
-
-  //   std::vector<DataComponentInterpretation::DataComponentInterpretation>
-  //     data_component_interpretation(
-  //       dim, DataComponentInterpretation::component_is_part_of_vector);
-  //   data_component_interpretation.push_back(
-  //     DataComponentInterpretation::component_is_scalar);
-
-  //   DataOut<dim> data_out;
-  //   data_out.attach_dof_handler(dof_handler);
-
-  //   data_out.add_data_vector(plot_lambda,
-  //                            solution_names,
-  //                            DataOut<dim>::type_dof_data,
-  //                            data_component_interpretation);
-  //               data_out.build_patches();
-                  
-  //               DataOutBase::VtkFlags vtk_flags;
-  //               vtk_flags.compression_level = DataOutBase::CompressionLevel::best_speed;
-  //               data_out.set_flags(vtk_flags);
-  //               std::ofstream output(
-  //                   "interface_data-" + Utilities::int_to_string(this_mpi)
-  //                   + "_" + Utilities::int_to_string(cycle, 1) 
-  //                   + "_" + Utilities::int_to_string(gmres_iteration, 3) 
-  //                   + ".vtu");
-  //               data_out.write_vtu(output);
-  // }
-
-
-
   // MixedStokesProblemDD::run
   template <int dim>
   void
@@ -2995,8 +2714,6 @@ namespace dd_stokes
     qdegree   = quad_degree;
 
     clean_files<dim>();// clean up old files and create output directory structure
-
-    // pcout << "quad_degree = " << quad_degree << std::endl;
 
     const unsigned int this_mpi =
       Utilities::MPI::this_mpi_process(mpi_communicator);
@@ -3369,10 +3086,6 @@ namespace dd_stokes
         P_coarse2fine.reset();
       }
     dof_handler_mortar.clear();
-    // for (int side = 0; side<GeometryInfo<dim>::faces_per_cell; ++side)
-    // {
-    //   interface_fe_function[side] = 0;
-    // }
   }
 
   template class MixedStokesProblemDD<2>;
