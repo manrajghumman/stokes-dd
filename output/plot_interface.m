@@ -27,6 +27,8 @@ data_y = readmatrix(dir + "/lambda_y"+string(i)+'_'+string(j)+'_'+string(k)+'.tx
 data_residual_y = readmatrix(dir + "/residual_y"+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
 data_true_y = readmatrix(dir + "/lambda_exact_y"+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
 
+data_total_residual = readmatrix(dir + "/residual_total" + string(k) + ".txt");
+
 num_timesteps = size(data, 1);
 num_values_per_timestep = size(data, 2);
 min_val = min(data(:));
@@ -59,8 +61,8 @@ data_true_x = data_true;
 fprintf("\n Now you need to specify what plot you want to see:\n" + ...
     "1. Show the x component of Lambda\n" + ...
     "2. Show the y component of Lambda\n" + ...
-    "3. Show the x component of the Residual\n" + ...
-    "4. Show the y component of the Residual\n" + ...
+    "3. Show the x component of the Residual(only cg)\n" + ...
+    "4. Show the y component of the Residual(only cg)\n"+ ...
     "Note: When all sides are Dirichlet pressure and hence stress will\n" + ...
     "be determined up to a constant and hence you might want to find this\n" + ...
     "constant by averaging on few of the interior nodes on the interface\n" + ...
@@ -68,9 +70,11 @@ fprintf("\n Now you need to specify what plot you want to see:\n" + ...
     "But be careful if the interface values do not converge this will just\n" + ...
     "ouptut garbage\n" + ...
     "5.Show the x component of Lambda (dirichlet bdry correction)\n" + ...
-    "6.Show the y component of Lambda (dirichlet bdry correction)\n")
+    "6.Show the y component of Lambda (dirichlet bdry correction)\n" + ...
+    "7.Show total residual for gmres\n" + ...
+    "8.Show total residual for cg\n")
 
-input_plot = input("Enter input here (enter a number between 1-6):");
+input_plot = input("Enter input here (enter a number between 1-8):");
 
 % Plot the x values of Lambda
 
@@ -222,7 +226,38 @@ slider = uicontrol('Style', 'slider', ...
 
 % Initial plot (optional)
 updatePlot_cy(slider, data_y, data_true_y, min_val, max_val);
+% Plot the total residual GMRES
+    case 7
+% Plot
+% plot(data_total_residual, '-o')
+% xlabel('steps')
+% ylabel('error in GMRES')
+% title('GMRES Error estimate plot')
+% Create slider
+slider = uicontrol('Style', 'slider', ...
+                   'Min', 1, 'Max', size(data_total_residual, 2), ...
+                   'Value', 1, 'SliderStep', [1/(size(data_total_residual,2)-1) , 1/(size(data_total_residual,2)-1)], ...
+                   'Position', [100 20 300 20], ...
+                   'Callback', @(src, event) updatePlot_r_t_gmres(src, data_total_residual));
 
+% Initial plot (optional)
+updatePlot_r_t_gmres(slider, data_total_residual);
+    
+% Plot the total residual CG
+    case 8
+% Plot
+% plot(data_total_residual, '-o')
+% xlabel('steps')
+% ylabel('error in GMRES')
+% title('CG total residual plot')  
+slider = uicontrol('Style', 'slider', ...
+                   'Min', 1, 'Max', size(data_total_residual, 2), ...
+                   'Value', 1, 'SliderStep', [1/(size(data_total_residual,2)-1) , 1/(size(data_total_residual,2)-1)], ...
+                   'Position', [100 20 300 20], ...
+                   'Callback', @(src, event) updatePlot_r_t_cg(src, data_total_residual));
+
+% Initial plot (optional)
+updatePlot_r_t_cg(slider, data_total_residual);
 
     otherwise
         fprintf("Error: You did not enter a valid case!")
@@ -332,4 +367,31 @@ function updatePlot_cy(slider, data_y, data_true_y, min_val, max_val)
     ylabel("bottom edge");
     % xlim([0, num_values_per_timestep]);
     hold off;
+end
+
+% Function to update plot based on slider value
+function updatePlot_r_t_gmres(slider, data_total_residual)
+    t = round(get(slider, 'Value'));  % Get current frame from slider
+    current_data = data_total_residual(t:end);
+
+    % Plot current data
+    plot(current_data, '-o');
+    xlabel('steps');
+    ylabel('error in GMRES');
+    title(['GMRES Error estimate plot between iter ', ...
+        num2str(t), '-', num2str(size(data_total_residual, 2))]);
+end
+
+% Function to update plot based on slider value
+function updatePlot_r_t_cg(slider, data_total_residual)
+    t = round(get(slider, 'Value'));  % Get current frame from slider
+    current_data = data_total_residual(t:end);
+    xval = t:size(data_total_residual, 2);
+
+    % Plot current data
+    plot(xval, current_data, '-o');
+    xlabel('steps');
+    ylabel('Residual in cg');
+    title(['CG Residual between iter ', ...
+        num2str(t), '-', num2str(size(data_total_residual, 2))]);
 end

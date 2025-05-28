@@ -875,6 +875,9 @@ namespace dd_stokes
     std::vector<std::ofstream> file_exact_y(n_faces_per_cell);
     std::vector<std::ofstream> file_residual_y(n_faces_per_cell);
 
+    std::ofstream file_residual_total;
+    std::ofstream file_residual_total_mortar;
+
     //for plotting data storage
     std::vector<std::vector<double>> plot(n_faces_per_cell);
     std::vector<std::vector<double>> plot_residual(n_faces_per_cell);
@@ -884,7 +887,7 @@ namespace dd_stokes
     std::vector<std::vector<double>> plot_exact_y(n_faces_per_cell);
 
     name_files<dim>(this_mpi, 0, cycle, neighbors, file, file_exact, file_residual,
-                      file_y, file_exact_y, file_residual_y);
+                      file_y, file_exact_y, file_residual_y, file_residual_total);
 
     // for mortar will be empty if mortar_flag is false
     std::vector<std::ofstream> file_mortar(n_faces_per_cell);
@@ -904,7 +907,7 @@ namespace dd_stokes
     std::vector<std::vector<double>> plot_exact_y_mortar(n_faces_per_cell);
 
     name_files<dim>(this_mpi, 1, cycle, neighbors, file_mortar, file_exact_mortar, file_residual_mortar,
-                    file_y_mortar, file_exact_y_mortar, file_residual_y_mortar);
+                    file_y_mortar, file_exact_y_mortar, file_residual_y_mortar, file_residual_total_mortar);
 
 
     solve_bar();
@@ -1270,8 +1273,8 @@ namespace dd_stokes
           neighbors, lambda, plot_mortar, plot_y_mortar, file_mortar, file_y_mortar);
           plot_exact_function<dim>(this_mpi, 1, mortar_degree, interface_dofs, 
             neighbors, exact_normal_stress_at_nodes_mortar, plot_exact_mortar, plot_exact_y_mortar, file_exact_mortar, file_exact_y_mortar);
-          plot_residual_function<dim>(this_mpi, 1, mortar_degree, interface_dofs, 
-            neighbors, r, plot_residual_mortar, plot_residual_y_mortar, file_residual_mortar, file_residual_y_mortar);  // residual plotting is not working yet 
+          // plot_residual_function<dim>(this_mpi, 1, mortar_degree, interface_dofs, 
+          //   neighbors, r, plot_residual_mortar, plot_residual_y_mortar, file_residual_mortar, file_residual_y_mortar);  // residual plotting is not working yet 
           // for fe grid
           // first prepare lambda on fe grid
           for (unsigned int side = 0; side < n_faces_per_cell; ++side)
@@ -1297,8 +1300,8 @@ namespace dd_stokes
             neighbors, lambda_fe, plot, plot_y, file, file_y);
           plot_exact_function<dim>(this_mpi, 0, mortar_degree, interface_dofs_fe, 
             neighbors, exact_normal_stress_at_nodes_fe, plot_exact, plot_exact_y, file_exact, file_exact_y);
-          plot_residual_function<dim>(this_mpi, 0, mortar_degree, interface_dofs_fe, 
-            neighbors, r, plot_residual, plot_residual_y, file_residual, file_residual_y);
+          // plot_residual_function<dim>(this_mpi, 0, mortar_degree, interface_dofs_fe, 
+          //   neighbors, r, plot_residual, plot_residual_y, file_residual, file_residual_y);
         }
         else
         {
@@ -1306,8 +1309,8 @@ namespace dd_stokes
             neighbors, lambda, plot, plot_y, file, file_y);
           plot_exact_function<dim>(this_mpi, 0, mortar_degree, interface_dofs, 
             neighbors, exact_normal_stress_at_nodes_fe, plot_exact, plot_exact_y, file_exact, file_exact_y);
-          plot_residual_function<dim>(this_mpi, 0, mortar_degree, interface_dofs, 
-            neighbors, r, plot_residual, plot_residual_y, file_residual, file_residual_y);
+          // plot_residual_function<dim>(this_mpi, 0, mortar_degree, interface_dofs, 
+          //   neighbors, r, plot_residual, plot_residual_y, file_residual, file_residual_y);
         }
 
         residual = combined_error_iter;
@@ -1336,22 +1339,28 @@ namespace dd_stokes
         Ap.resize(n_faces_per_cell);
         k_counter++;
       }//end of the while loop(k_counter<max iteration)
-
+    //plot the total residual for mortar and non-mortar cases
+    if (mortar_flag)
+      plot_total_residual<dim>(e_all_iter, file_residual_total_mortar);
+    else
+      plot_total_residual<dim>(e_all_iter, file_residual_total);
     for (unsigned int side=0; side < n_faces_per_cell; ++side)
     {
       file[side].close(); // close the file
-      file_residual[side].close();
+      file_residual[side].close(); // has the total residual
       file_exact[side].close();
       file_y[side].close(); // close the file
-      file_residual_y[side].close();
+      file_residual_y[side].close(); // useless empty file
       file_exact_y[side].close();
       //for mortar will be empty if mortar_flag is false
       file_mortar[side].close(); // close the file
       file_residual_mortar[side].close();
-      file_exact_mortar[side].close();
+      file_exact_mortar[side].close(); 
       file_y_mortar[side].close(); // close the file
-      file_residual_y_mortar[side].close();
+      file_residual_y_mortar[side].close(); // useless empty file
       file_exact_y_mortar[side].close();
+      file_residual_total_mortar.close();
+      file_residual_total.close();
     }
 
     //we can replace lambda here and just add interface_data(skip one step below)
@@ -1419,6 +1428,7 @@ namespace dd_stokes
     interface_fe_function_fe.resize(n_faces_per_cell);
     interface_fe_function_mortar.resize(n_faces_per_cell);
     interface_fe_function_mortar_fe.resize(n_faces_per_cell);
+    std::vector<double> residual_vector;
 
     std::vector<std::vector<double>> lambda(n_faces_per_cell);
     std::vector<std::vector<double>> lambda_fe(n_faces_per_cell);
@@ -1431,6 +1441,9 @@ namespace dd_stokes
     std::vector<std::ofstream> file_exact_y(n_faces_per_cell);
     std::vector<std::ofstream> file_residual_y(n_faces_per_cell);
 
+    std::ofstream file_residual_total;
+    std::ofstream file_residual_total_mortar;
+
     //for plotting data storage
     std::vector<std::vector<double>> plot(n_faces_per_cell);
     std::vector<std::vector<double>> plot_residual(n_faces_per_cell);
@@ -1440,7 +1453,7 @@ namespace dd_stokes
     std::vector<std::vector<double>> plot_exact_y(n_faces_per_cell);
 
     name_files<dim>(this_mpi, 0, cycle, neighbors, file, file_exact, file_residual,
-                      file_y, file_exact_y, file_residual_y);
+                      file_y, file_exact_y, file_residual_y, file_residual_total);
                       
     // for mortar will be empty if mortar_flag is false
     std::vector<std::ofstream> file_mortar(n_faces_per_cell);
@@ -1460,7 +1473,7 @@ namespace dd_stokes
     std::vector<std::vector<double>> plot_exact_y_mortar(n_faces_per_cell);
 
     name_files<dim>(this_mpi, 1, cycle, neighbors, file_mortar, file_exact_mortar, file_residual_mortar,
-                    file_y_mortar, file_exact_y_mortar, file_residual_y_mortar);
+                    file_y_mortar, file_exact_y_mortar, file_residual_y_mortar, file_residual_total_mortar);
 
 
     solve_bar();
@@ -1789,6 +1802,7 @@ namespace dd_stokes
               << ")..." << std::flush;
         residual = fabs(alpha[0] / normB);
       }
+      residual_vector.push_back(residual);
       // Exit criterion
       if (fabs(alpha[0]) / normB < tolerance)
         {
@@ -1834,6 +1848,10 @@ namespace dd_stokes
           Ap.resize(n_faces_per_cell);
         }
     }
+    if (mortar_flag)
+      plot_total_residual<dim>(residual_vector, file_residual_total_mortar);
+    else
+      plot_total_residual<dim>(residual_vector, file_residual_total);
     for (unsigned int side=0; side < n_faces_per_cell; ++side)
     {
       file[side].close(); // close the file
@@ -1849,6 +1867,8 @@ namespace dd_stokes
       file_y_mortar[side].close(); // close the file
       file_residual_y_mortar[side].close();
       file_exact_y_mortar[side].close();
+      file_residual_total.close();
+      file_residual_total_mortar.close();
     }
 
     if (mortar_flag)
@@ -2475,7 +2495,7 @@ namespace dd_stokes
 
     // std::cout << "Errors: ||e_p||_L2 = " << p_l2_error
     //           << ",   ||e_u||_L2 = " << u_l2_error << std::endl;
-
+    int tmp;
     for (int i = 0; i<n_processes; ++i)
     {
       MPI_Barrier(mpi_communicator);
@@ -2516,9 +2536,16 @@ namespace dd_stokes
       mpi_communicator);
     // if (cycle == 0)
     // {
-      h = reps[this_mpi][0];
-      h = 1.0/(h*2);
-      unsigned int n = reps[this_mpi][0] * 2;
+    h = reps[this_mpi][0]; // right now this is fine since we take ration in computing order
+    h = 1.0/(h*2); // will be used to compute u_order and p_order
+    int n;
+    tmp = std::min(n_domains[0] * reps[this_mpi][0], n_domains[1] * reps[this_mpi][1]) * 2;
+    MPI_Allreduce(&tmp, //sending this data
+      &n, //receiving the result here
+      1, //number of elements in alpha and alpha_buffer = 1+1
+      MPI_INT, //type of each element
+      MPI_MIN, //find min of element received
+      mpi_communicator);
       // std::cout << "this_mpi = " << this_mpi << "reps[this_mpi][0] = " << reps[this_mpi][0] << std::endl;
     // }
     // else
@@ -2541,7 +2568,7 @@ namespace dd_stokes
       order_p_total = 0;
     }
     int interface_dofs_size; 
-    int tmp;
+    // int tmp;
     if (dim == 2)
     {
       if (this_mpi % 2 == 0)
@@ -2956,7 +2983,7 @@ namespace dd_stokes
     convergence_table.set_tex_caption("cells", "\\# cells");
     convergence_table.set_tex_caption("h", "\\ h");
     // convergence_table.set_tex_caption("dofs", "\\# dofs");
-    convergence_table.set_tex_caption("interface_dofs", "\\# interface dofs");
+    convergence_table.set_tex_caption("interface_dofs", "\\ dofs");
     convergence_table.set_tex_caption("cg_iter", "cg iter");
     convergence_table.set_tex_caption("u_order", "u order");
     convergence_table.set_tex_caption("p_order", "p order");
@@ -3047,7 +3074,7 @@ namespace dd_stokes
     // convergence_table_total.set_tex_caption("cells", "\\# cells");
     convergence_table_total.set_tex_caption("h", "\\ h");
     // convergence_table_total.set_tex_caption("dofs", "\\# dofs");
-    convergence_table_total.set_tex_caption("interface_dofs", "\\# interface dofs");
+    convergence_table_total.set_tex_caption("interface_dofs", "\\ dofs");
     convergence_table_total.set_tex_caption("cg_iter", "cg iter");
     convergence_table_total.set_tex_caption("u_order", "u order");
     convergence_table_total.set_tex_caption("p_order", "p order");

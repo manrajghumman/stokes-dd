@@ -25,7 +25,6 @@
 #include <iostream>
 // #include "utilities.h"
 #include "projector.h"
-// #include "utilities.h"
 
 namespace dd_stokes
 {
@@ -93,11 +92,6 @@ namespace dd_stokes
     compute_errors(const unsigned int &cycle,
                    std::vector<std::vector<unsigned int>> &reps);
 
-    // void
-    // output_results(const unsigned int &cycle,
-    //                const unsigned int &refine,
-    //                const std::string & name);
-
     void 
     write_dof_locations(const std::string &  filename) const;
 
@@ -112,9 +106,6 @@ namespace dd_stokes
 
     void
     output_results(const unsigned int cycle) const;
-
-    // void
-    // output_interface_results(const unsigned int cycle, const unsigned int &gmres_iteration, BlockVector<double> &plot_lambda) const;
 
     //For implementing GMRES
     void
@@ -162,8 +153,6 @@ namespace dd_stokes
     std::vector<unsigned int>              faces_on_interface_mortar;
     std::vector<std::vector<unsigned int>> interface_dofs;
     std::vector<std::vector<unsigned int>> interface_dofs_fe;
-    // std::vector<std::vector<double>> plot_lambda;
-    // std::vector<std::vector<double>> interface_data;
     std::vector<double> interface_dofs_total;
     std::vector<std::vector<unsigned int>> interface_dofs_find_neumann;
     std::vector<unsigned int> repeated_dofs;
@@ -211,7 +200,6 @@ namespace dd_stokes
     BlockVector<double> system_rhs_star_stokes;
     std::vector<BlockVector<double>> interface_fe_function;
     std::vector<BlockVector<double>> interface_fe_function_fe;
-    // BlockVector<double> interface_fe_function;
 
     
 

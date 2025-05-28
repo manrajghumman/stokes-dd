@@ -31,11 +31,13 @@ main(int argc, char *argv[])
       MultithreadInfo::set_thread_limit(4);
       const unsigned int this_mpi =
       Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
+      const unsigned int n_processes =
+      Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
       std::cout << "Thread limit: " << MultithreadInfo::n_threads() << ", this_mpi = " << this_mpi << std::endl;
 
       // Mortar mesh parameters (non-matching checkerboard)
-      int processes = 15;
-      std::vector<std::vector<unsigned int>> mesh_m2d(processes + 1);
+      // int processes = 15;
+      std::vector<std::vector<unsigned int>> mesh_m2d(n_processes + 1);
       // mesh_m2d[0] = {2, 2}; // this is {x, y} for grid division
       // mesh_m2d[1] = {3, 3};
       // mesh_m2d[2] = {3, 3};
@@ -43,7 +45,7 @@ main(int argc, char *argv[])
       // mesh_m2d[4] = {1, 1};
       for (unsigned int i = 0; i < mesh_m2d.size(); ++i)
         {
-          mesh_m2d[i] = {2, 2};
+          mesh_m2d[i] = {2, 3};
         }
         // uncomment below and change manually to change
       // mesh_m2d[0] = {2, 2};

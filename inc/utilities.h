@@ -626,7 +626,8 @@ namespace dd_stokes
             std::vector<std::ofstream>       &file_residual,
             std::vector<std::ofstream>       &file_y,
             std::vector<std::ofstream>       &file_exact_y,
-            std::vector<std::ofstream>       &file_residual_y)
+            std::vector<std::ofstream>       &file_residual_y,
+            std::ofstream                    &file_residual_total)
   {
    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
     for (unsigned int side=0; side < n_faces_per_cell; ++side)
@@ -659,6 +660,13 @@ namespace dd_stokes
                     + Utilities::int_to_string(cycle, 1) + ".txt", std::ios::out | std::ios::trunc); 
       }
     }
+    std::string dir = "../output/interface_data/";
+    if (mortar_flag)
+      dir = dir + "/mortar";
+    else
+      dir = dir + "/fe";
+    // std::cout << dir << std::endl;
+    file_residual_total.open(dir + "/residual_total" + Utilities::int_to_string(cycle, 1) + ".txt", std::ios::out | std::ios::trunc);
   }
   
 
@@ -963,6 +971,20 @@ namespace dd_stokes
                 file_residual_y[side] << value << " ";
               file_residual_y[side] << "\n";
             }
+  }
+
+  template <int dim>
+  void 
+  plot_total_residual(std::vector<double>          &error,
+                      std::ofstream                &file_residual)
+  {
+    // const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
+    for (const auto& value : error)
+      file_residual << value << " ";
+    // for (int side = 0; side < n_faces_per_cell; ++side)
+    //   if (neighbors[side] >= 0)
+    //     for (const double& value : error)
+    //       file_residual[side] << value << " ";
   }
 
   template <int dim>
