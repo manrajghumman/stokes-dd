@@ -952,10 +952,13 @@ namespace dd_stokes
     std::vector<std::vector<double>> interface_data_receive(n_faces_per_cell);
     std::vector<std::vector<double>> interface_data_send(n_faces_per_cell);
     std::vector<std::vector<double>> interface_data(n_faces_per_cell);
-    std::vector<std::vector<double>> lambda(n_faces_per_cell);
     interface_fe_function.resize(n_faces_per_cell);
     interface_fe_function_fe.resize(n_faces_per_cell);
-    // interface_fe_function_mortar.resize(n_faces_per_cell); // for mortar later
+    interface_fe_function_mortar.resize(n_faces_per_cell);
+    interface_fe_function_mortar_fe.resize(n_faces_per_cell);
+
+    std::vector<std::vector<double>> lambda(n_faces_per_cell);
+    std::vector<std::vector<double>> lambda_fe(n_faces_per_cell);
 
     std::vector<std::ofstream> file(n_faces_per_cell);
     std::vector<std::ofstream> file_exact(n_faces_per_cell);
@@ -976,25 +979,25 @@ namespace dd_stokes
     name_files<dim>(this_mpi, 0, cycle, neighbors, file, file_exact, file_residual,
                       file_y, file_exact_y, file_residual_y);
 
-    
-    // std::vector<std::ofstream> file_mortar(n_faces_per_cell);
-    // std::vector<std::ofstream> file_exact_mortar(n_faces_per_cell);
-    // std::vector<std::ofstream> file_residual_mortar(n_faces_per_cell);
+    // for mortar will be empty if mortar_flag is false
+    std::vector<std::ofstream> file_mortar(n_faces_per_cell);
+    std::vector<std::ofstream> file_exact_mortar(n_faces_per_cell);
+    std::vector<std::ofstream> file_residual_mortar(n_faces_per_cell);
 
-    // std::vector<std::ofstream> file_y_mortar(n_faces_per_cell);
-    // std::vector<std::ofstream> file_exact_y_mortar(n_faces_per_cell);
-    // std::vector<std::ofstream> file_residual_y_mortar(n_faces_per_cell);
+    std::vector<std::ofstream> file_y_mortar(n_faces_per_cell);
+    std::vector<std::ofstream> file_exact_y_mortar(n_faces_per_cell);
+    std::vector<std::ofstream> file_residual_y_mortar(n_faces_per_cell);
 
-    // //for plotting data storage
-    // std::vector<std::vector<double>> plot_mortar(n_faces_per_cell);
-    // std::vector<std::vector<double>> plot_residual_mortar(n_faces_per_cell);
-    // std::vector<std::vector<double>> plot_exact_mortar(n_faces_per_cell);
-    // std::vector<std::vector<double>> plot_y_mortar(n_faces_per_cell);
-    // std::vector<std::vector<double>> plot_residual_y_mortar(n_faces_per_cell);
-    // std::vector<std::vector<double>> plot_exact_y_mortar(n_faces_per_cell);
+    //for plotting data storage
+    std::vector<std::vector<double>> plot_mortar(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_residual_mortar(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_exact_mortar(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_y_mortar(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_residual_y_mortar(n_faces_per_cell);
+    std::vector<std::vector<double>> plot_exact_y_mortar(n_faces_per_cell);
 
-    // name_files<dim>(this_mpi, mortar_flag, cycle, neighbors, file_mortar, file_exact_mortar, file_residual_mortar,
-    //                 file_y_mortar, file_exact_y_mortar, file_residual_y_mortar);
+    name_files<dim>(this_mpi, 1, cycle, neighbors, file_mortar, file_exact_mortar, file_residual_mortar,
+                    file_y_mortar, file_exact_y_mortar, file_residual_y_mortar);
 
 
     solve_bar();
@@ -1006,6 +1009,7 @@ namespace dd_stokes
               interface_data_send[side].resize(interface_dofs[side].size(), 0);
               interface_data[side].resize(interface_dofs[side].size(), 0);
               interface_fe_function[side].reinit(solution_bar_stokes);
+              interface_fe_function_fe[side].reinit(solution_bar_stokes);
         }
 
     // Extra for projections from mortar to fine grid and RHS assembly
@@ -1013,13 +1017,29 @@ namespace dd_stokes
     quad = QGauss<dim - 1>(qdegree);
 
 
-    dealii::AffineConstraints<double>   constraints;
+    // dealii::AffineConstraints<double>   constraints;
     FEFaceValues<dim> fe_face_values(fe,
                                     quad,
                                     update_values | update_normal_vectors |
                                       update_quadrature_points |
                                       update_JxW_values);
-
+    if (mortar_flag == 1)
+    { 
+      for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+        if (neighbors[side] >= 0)
+        {
+          interface_fe_function_mortar[side].reinit(solution_bar_mortar);
+          interface_fe_function_mortar_fe[side].reinit(solution_bar_mortar);
+        }
+      project_mortar(P_fine2coarse,
+                    dof_handler,
+                    solution_bar_stokes,
+                    quad,
+                    constraints_mortar,
+                    neighbors,
+                    dof_handler_mortar,
+                    solution_bar_mortar);
+    }
     //GMRES structures and parameters
     std::vector<double>	sn;
     std::vector<double>	cs;
@@ -1036,11 +1056,11 @@ namespace dd_stokes
 
 
 
-    // CG structures and parameters
-    std::vector<double> alpha_side(n_faces_per_cell, 0),
-      alpha_side_d(n_faces_per_cell, 0), beta_side(n_faces_per_cell, 0),
-      beta_side_d(n_faces_per_cell, 0); //to be deleted
-    std::vector<double> alpha(2, 0), beta(2, 0); //to be deleted
+    // // CG structures and parameters
+    // std::vector<double> alpha_side(n_faces_per_cell, 0),
+    //   alpha_side_d(n_faces_per_cell, 0), beta_side(n_faces_per_cell, 0),
+    //   beta_side_d(n_faces_per_cell, 0); //to be deleted
+    // std::vector<double> alpha(2, 0), beta(2, 0); //to be deleted
 
     std::vector<std::vector<double>> r(n_faces_per_cell); //to be deleted probably: p?
     std::vector<double> r_norm_side(n_faces_per_cell,0);
@@ -1075,11 +1095,28 @@ namespace dd_stokes
 
 
           // Right now it is effectively solution_bar - A\lambda (0)
+            // for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+            //   r[side][i] = get_normal_direction(side) *
+            //                 solution_bar_stokes[interface_dofs[side][i]] -
+            //               get_normal_direction(side) * l0;
+          if (mortar_flag)
+          {
             for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-              r[side][i] = get_normal_direction(side) *
-                            solution_bar_stokes[interface_dofs[side][i]] -
-                          get_normal_direction(side) * l0;
-
+            {
+              r[side][i] = get_normal_direction(side) * 
+                              solution_bar_mortar[interface_dofs[side][i]]-
+                            get_normal_direction(side) * l0;
+            }
+          }
+          else
+          {
+            for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+            {
+              r[side][i] = get_normal_direction(side) * 
+                              solution_bar_stokes[interface_dofs[side][i]]-
+                           get_normal_direction(side) * l0;
+            }
+          }
 
           MPI_Send(&r[side][0],
                   r[side].size(),
@@ -1100,9 +1137,6 @@ namespace dd_stokes
               r[side][i] += r_receive_buffer[i];
             }
           r_norm_side[side] = vect_norm(r[side]);
-
-
-
         }
 
 
@@ -1156,15 +1190,43 @@ namespace dd_stokes
           if (neighbors[side] >= 0)
             interface_data[side]=Q_side[side][k_counter];
 
+        if (mortar_flag)
+        {
+          for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+            for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+              interface_fe_function_mortar[side][interface_dofs[side][i]] = 
+                interface_data[side][i];
+          
+          for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+            if (neighbors[side] >= 0)
+            {
+              project_mortar(P_coarse2fine,
+                            dof_handler_mortar,
+                            interface_fe_function_mortar[side],
+                            quad,
+                            constraints_mortar,
+                            neighbors,
+                            dof_handler,
+                            interface_fe_function[side]);
+              interface_fe_function[side].block(1) = 0;//this is probably because of the projection
+              // pcout << "did we get here?? 1" << std::endl;
+            }
+        }
+        else
+        {
+          for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+            for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+              interface_fe_function[side][interface_dofs[side][i]] = 
+                interface_data[side][i];
+        }
+            // for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+            //   for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+            //     interface_fe_function[side][interface_dofs[side][i]] =
+            //       interface_data[side][i];
 
-            for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-              for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-                interface_fe_function[side][interface_dofs[side][i]] =
-                  interface_data[side][i];
-
-            // interface_fe_function.block(1) = 0;
-            assemble_rhs_star(fe_face_values);
-            solve_star();
+        // interface_fe_function.block(1) = 0;
+        assemble_rhs_star(fe_face_values);
+        solve_star();
 
         // //Interface data for plotting, currently works only in 2 dim
         // plot_approx_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
@@ -1173,9 +1235,16 @@ namespace dd_stokes
         //   neighbors, exact_normal_stress_at_nodes, plot_exact, plot_exact_y, file_exact, file_exact_y);
         // plot_residual_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
         //   neighbors, r, plot_residual, plot_residual_y, file_residual, file_residual_y); // residual plotting is not working yet 
-
-
         gmres_iteration++;
+        if (mortar_flag)
+          project_mortar(P_fine2coarse,
+                        dof_handler,
+                        solution_star_stokes,
+                        quad,
+                        constraints_mortar,
+                        neighbors,
+                        dof_handler_mortar,
+                        solution_star_mortar);
 
         //defing q  to push_back to Q (Arnoldi algorithm)
   //          std::vector<std::vector<double>> q(n_faces_per_cell);
@@ -1187,10 +1256,21 @@ namespace dd_stokes
           if (neighbors[side] >= 0)
             {
               // Create vector of u\dot n to send
+              if (mortar_flag)
+              {
+                for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+                  interface_data_send[side][i] =
+                    get_normal_direction(side) *
+                    solution_star_mortar[interface_dofs[side][i]];
+              }
+              else
+              {
                 for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
                   interface_data_send[side][i] =
                     get_normal_direction(side) *
                     solution_star_stokes[interface_dofs[side][i]];
+              }
+              
 
               MPI_Send(&interface_data_send[side][0],
                       interface_dofs[side].size(),
@@ -1218,12 +1298,13 @@ namespace dd_stokes
               q[side].resize(Ap[side].size(),0);
               assert(Ap[side].size()==Q_side[side][k_counter].size());
               q[side] = Ap[side];
-              for(unsigned int i=0; i<=k_counter; ++i){
+              for(unsigned int i=0; i<=k_counter; ++i)
+              {
                         for(unsigned int j=0; j<q[side].size();++j){
                           h[i]+=q[side][j]*Q_side[side][i][j];
                           }
 
-            }
+              }
 
 
             } //////-----------end of loop over side, q is calculated as AQ[][k] and ARnoldi Algorithm continued-------------------------------
@@ -1309,24 +1390,53 @@ namespace dd_stokes
             for (unsigned int i = 0; i < interface_data[side].size(); ++i)
               for(unsigned int j=0; j<=k_counter; ++j)
                 lambda[side][i] += Q_side[side][j][i]*y[j];
-
-        //Interface data for plotting, currently works only in 2 dim
-        plot_approx_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
-          neighbors, lambda, plot, plot_y, file, file_y);
-        plot_exact_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
-          neighbors, exact_normal_stress_at_nodes_fe, plot_exact, plot_exact_y, file_exact, file_exact_y);
-        plot_residual_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
-          neighbors, r, plot_residual, plot_residual_y, file_residual, file_residual_y); // residual plotting is not working yet 
         
-        // if (mortar_flag)
-        // {
-        //   plot_approx_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
-        //   neighbors, lambda, plot_mortar, plot_y_mortar, file_mortar, file_y_mortar);
-        //   plot_exact_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
-        //     neighbors, exact_normal_stress_at_nodes_mortar, plot_exact_mortar, plot_exact_y_mortar, file_exact_mortar, file_exact_y_mortar);
-        //   plot_residual_function<dim>(this_mpi, mortar_flag, mortar_degree, interface_dofs, 
-        //     neighbors, r, plot_residual_mortar, plot_residual_y_mortar, file_residual_mortar, file_residual_y_mortar);       
-        // }
+        if (mortar_flag)
+        {
+          // for mortar grid
+          plot_approx_function<dim>(this_mpi, 1, mortar_degree, interface_dofs, 
+          neighbors, lambda, plot_mortar, plot_y_mortar, file_mortar, file_y_mortar);
+          plot_exact_function<dim>(this_mpi, 1, mortar_degree, interface_dofs, 
+            neighbors, exact_normal_stress_at_nodes_mortar, plot_exact_mortar, plot_exact_y_mortar, file_exact_mortar, file_exact_y_mortar);
+          plot_residual_function<dim>(this_mpi, 1, mortar_degree, interface_dofs, 
+            neighbors, r, plot_residual_mortar, plot_residual_y_mortar, file_residual_mortar, file_residual_y_mortar);  // residual plotting is not working yet 
+          // for fe grid
+          // first prepare lambda on fe grid
+          for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+            if (neighbors[side] >= 0)
+            {
+              lambda_fe[side].resize(interface_dofs_fe[side].size(), 0);
+              for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+                interface_fe_function_mortar_fe[side][interface_dofs[side][i]] = lambda[side][i];
+              // project mortar to fe grid
+              project_mortar(P_coarse2fine,
+                            dof_handler_mortar,
+                            interface_fe_function_mortar_fe[side],
+                            quad,
+                            constraints_mortar,
+                            neighbors,
+                            dof_handler,
+                            interface_fe_function_fe[side]);
+              for (unsigned int i = 0; i < interface_dofs_fe[side].size(); ++i)
+                lambda_fe[side][i] = interface_fe_function_fe[side][interface_dofs_fe[side][i]];
+            }
+          // then plot it
+          plot_approx_function<dim>(this_mpi, 0, mortar_degree, interface_dofs_fe, 
+            neighbors, lambda_fe, plot, plot_y, file, file_y);
+          plot_exact_function<dim>(this_mpi, 0, mortar_degree, interface_dofs_fe, 
+            neighbors, exact_normal_stress_at_nodes_fe, plot_exact, plot_exact_y, file_exact, file_exact_y);
+          plot_residual_function<dim>(this_mpi, 0, mortar_degree, interface_dofs_fe, 
+            neighbors, r, plot_residual, plot_residual_y, file_residual, file_residual_y);
+        }
+        else
+        {
+          plot_approx_function<dim>(this_mpi, 0, mortar_degree, interface_dofs, 
+            neighbors, lambda, plot, plot_y, file, file_y);
+          plot_exact_function<dim>(this_mpi, 0, mortar_degree, interface_dofs, 
+            neighbors, exact_normal_stress_at_nodes_fe, plot_exact, plot_exact_y, file_exact, file_exact_y);
+          plot_residual_function<dim>(this_mpi, 0, mortar_degree, interface_dofs, 
+            neighbors, r, plot_residual, plot_residual_y, file_residual, file_residual_y);
+        }
 
         residual = combined_error_iter;
 
@@ -1347,11 +1457,8 @@ namespace dd_stokes
         //maxing interface_data_receive and send zero so it can be used is solving for Ap(or A*Q([k_counter]).
         for (unsigned int side = 0; side < n_faces_per_cell; ++side)
           {
-
             interface_data_receive[side].resize(interface_dofs[side].size(), 0);
             interface_data_send[side].resize(interface_dofs[side].size(), 0);
-
-
           }
 
         Ap.resize(n_faces_per_cell);
@@ -1390,20 +1497,51 @@ namespace dd_stokes
       file_y[side].close(); // close the file
       file_residual_y[side].close();
       file_exact_y[side].close();
-      // //for mortar will be empty if mortar_flag is false
-      // file_mortar[side].close(); // close the file
-      // file_residual_mortar[side].close();
-      // file_exact_mortar[side].close();
-      // file_y_mortar[side].close(); // close the file
-      // file_residual_y_mortar[side].close();
-      // file_exact_y_mortar[side].close();
+      //for mortar will be empty if mortar_flag is false
+      file_mortar[side].close(); // close the file
+      file_residual_mortar[side].close();
+      file_exact_mortar[side].close();
+      file_y_mortar[side].close(); // close the file
+      file_residual_y_mortar[side].close();
+      file_exact_y_mortar[side].close();
     }
 
-        interface_data = lambda;
-        for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+    if (mortar_flag)
+    {
+      interface_data = lambda;
+      for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+        for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+          interface_fe_function_mortar[side][interface_dofs[side][i]] = 
+            interface_data[side][i];
+      
+      for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+        if (neighbors[side] >= 0)
+        { 
+          project_mortar(P_coarse2fine,
+                        dof_handler_mortar,
+                        interface_fe_function_mortar[side],
+                        quad,
+                        constraints_mortar,
+                        neighbors,
+                        dof_handler,
+                        interface_fe_function[side]);
+
+          interface_fe_function[side].block(1) = 0; 
+        }
+    }
+    else
+    {
+      interface_data = lambda;
+      for (unsigned int side = 0; side < n_faces_per_cell; ++side)
           for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-            interface_fe_function[side][interface_dofs[side][i]] =
-              interface_data[side][i];
+            interface_fe_function[side][interface_dofs[side][i]] = interface_data[side][i];
+    }
+
+        // interface_data = lambda;
+        // for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+        //   for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+        //     interface_fe_function[side][interface_dofs[side][i]] =
+        //       interface_data[side][i];
 
 
     assemble_rhs_star(fe_face_values);
@@ -1412,7 +1550,7 @@ namespace dd_stokes
     solution = solution_bar_stokes;
     solution.sadd(1.0, solution_star_stokes);
 
-    solution_star_stokes.sadd(1.0, solution_bar_stokes);
+    // solution_star_stokes.sadd(1.0, solution_bar_stokes);
     pcout<<"finished local_gmres"<<"\n";
 
 
@@ -1479,7 +1617,7 @@ namespace dd_stokes
     std::vector<std::vector<double>> plot_residual_y_mortar(n_faces_per_cell);
     std::vector<std::vector<double>> plot_exact_y_mortar(n_faces_per_cell);
 
-    name_files<dim>(this_mpi, mortar_flag, cycle, neighbors, file_mortar, file_exact_mortar, file_residual_mortar,
+    name_files<dim>(this_mpi, 1, cycle, neighbors, file_mortar, file_exact_mortar, file_residual_mortar,
                     file_y_mortar, file_exact_y_mortar, file_residual_y_mortar);
 
 
@@ -1984,8 +2122,6 @@ namespace dd_stokes
 
     assemble_rhs_star(fe_face_values);
     solve_star();
-
-
     solution.reinit(solution_bar_stokes);
     solution = solution_bar_stokes;// u = u_bar
     solution.sadd(1.0, solution_star_stokes);// u = 1*u+u_star
