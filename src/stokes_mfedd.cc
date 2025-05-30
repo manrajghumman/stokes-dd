@@ -767,6 +767,109 @@ namespace dd_stokes
   }
 
 
+  /*
+  create output in a text file to be read and used by matlab
+  */
+  template <int dim>
+  void
+  MixedStokesProblemDD<dim>::print_interface_matrix()
+  {
+    const unsigned int this_mpi =
+      Utilities::MPI::this_mpi_process(mpi_communicator);
+    TimerOutput::Scope t(computing_timer, "Print interface matrix");
+    AffineConstraints<double>   constraints;
+    QGauss<dim - 1>    quad(qdegree);
+    FEFaceValues<dim>  fe_face_values(fe,
+                                     quad,
+                                     update_values | update_normal_vectors |
+                                       update_quadrature_points |
+                                       update_JxW_values);
+
+    std::vector<size_t> block_sizes{solution_star_mortar.block(0).size(),
+                                    solution_star_mortar.block(1).size()};
+    long                n_interface_dofs = 0;
+
+    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
+    std::vector<std::vector<double>> interface_data_receive(n_faces_per_cell);
+    std::vector<std::vector<double>> interface_data_send(n_faces_per_cell);
+    BlockVector<double> output(solution_star_mortar);
+    interface_matrix.reinit(interface_dofs_total.size(), interface_dofs_total.size());
+    interface_matrix = 0;
+
+    // for (auto vec : interface_dofs)
+    //   for (auto el : vec)
+    //     n_interface_dofs += 1;
+    n_interface_dofs = interface_dofs_total.size();
+    std::vector<BlockVector<double>> lambda_basis;
+    lambda_basis.resize(n_interface_dofs);
+    BlockVector<double> tmp_basis(solution_star_mortar);
+
+    // interface_fe_function[side].reinit(solution_bar_stokes);
+
+    unsigned int ind = 0;
+    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+      if (neighbors[side] >= 0)
+        for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+          {
+            interface_fe_function[side].reinit(solution_bar_stokes);
+            interface_fe_function[side] = 0;
+            lambda_basis[ind].reinit(solution_bar_mortar);
+            lambda_basis[ind] = 0;
+
+            tmp_basis                          = 0;
+            tmp_basis[interface_dofs[side][i]] = 1.0;
+            //allow for non mortar problems also
+            project_mortar(P_coarse2fine,
+                          dof_handler_mortar,
+                          tmp_basis,
+                          quad,
+                          constraints,
+                          neighbors,
+                          dof_handler,
+                          interface_fe_function[side]);
+
+            interface_fe_function[side].block(1) = 0;
+            assemble_rhs_star(fe_face_values);
+            solve_star();
+            
+            for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+                interface_data_send[side][i] = get_normal_direction(side) *
+                                                  solution_star_mortar[interface_dofs[side][i]];
+            MPI_Send(&interface_data_send[side][0],
+                      interface_dofs[side].size(),
+                      MPI_DOUBLE,
+                      neighbors[side],
+                      this_mpi,
+                      mpi_communicator);
+            MPI_Recv(&interface_data_receive[side][0],
+                      interface_dofs[side].size(),
+                      MPI_DOUBLE,
+                      neighbors[side],
+                      neighbors[side],
+                      mpi_communicator,
+                      &mpi_status);
+            for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+              output[interface_dofs[side][i]] = -(interface_data_send[side][i] +
+                                                    interface_data_receive[side][i]);
+
+            project_mortar(P_fine2coarse,
+                          dof_handler,
+                          output,
+                          quad,
+                          constraints,
+                          neighbors,
+                          dof_handler_mortar,
+                          lambda_basis[ind]);
+            ind += 1;
+            for (unsigned int i = 0; i < n_interface_dofs; ++i)
+              interface_matrix[i][ind] += lambda_basis[ind][i];
+          }
+    if (this_mpi == 0)
+      interface_matrix.print(std::cout);
+    //create output in a text file to be read and used by matlab
+  }
+
+
   //Functions for GMRES:-------------------
 
 
@@ -1477,6 +1580,7 @@ namespace dd_stokes
 
 
     solve_bar();
+    // print_interface_matrix();
 
     for (unsigned int side = 0; side < n_faces_per_cell; ++side)
       if (neighbors[side] >= 0)

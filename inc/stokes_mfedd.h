@@ -80,6 +80,9 @@ namespace dd_stokes
     // compute_multiscale_basis();
 
     void
+    print_interface_matrix();
+
+    void
     local_gmres(const unsigned int &maxiter, unsigned int &cycle);
 
     void
@@ -153,11 +156,11 @@ namespace dd_stokes
     std::vector<unsigned int>              faces_on_interface_mortar;
     std::vector<std::vector<unsigned int>> interface_dofs;
     std::vector<std::vector<unsigned int>> interface_dofs_fe;
-    std::vector<double> interface_dofs_total;
+    std::vector<double>                    interface_dofs_total;
     std::vector<std::vector<unsigned int>> interface_dofs_find_neumann;
-    std::vector<unsigned int> repeated_dofs;
-    std::vector<unsigned int> repeated_dofs_neumann;
-    std::vector<unsigned int> repeated_dofs_neumann_corner;
+    std::vector<unsigned int>              repeated_dofs;
+    std::vector<unsigned int>              repeated_dofs_neumann;
+    std::vector<unsigned int>              repeated_dofs_neumann_corner;
 
     unsigned long n_velocity_interface;
     unsigned long n_velocity_interface_fe;
@@ -188,6 +191,7 @@ namespace dd_stokes
     AffineConstraints<double> constraints_star;
     BlockSparsityPattern      preconditioner_sparsity_pattern;
     BlockSparseMatrix<double> preconditioner_matrix;
+    FullMatrix<double>        interface_matrix;
 
 
     BlockVector<double> solution_bar_stokes;
