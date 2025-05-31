@@ -80,7 +80,7 @@ namespace dd_stokes
     // compute_multiscale_basis();
 
     void
-    print_interface_matrix();
+    print_interface_matrix(unsigned int &cycle);
 
     void
     local_gmres(const unsigned int &maxiter, unsigned int &cycle);

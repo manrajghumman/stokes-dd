@@ -29,6 +29,8 @@ data_true_y = readmatrix(dir + "/lambda_exact_y"+string(i)+'_'+string(j)+'_'+str
 
 data_total_residual = readmatrix(dir + "/residual_total" + string(k) + ".txt");
 
+interface_matrix = readmatrix(dir + "/interface_matrix" + '_' + string(k) + ".txt");
+
 num_timesteps = size(data, 1);
 num_values_per_timestep = size(data, 2);
 min_val = min(data(:));
@@ -74,7 +76,8 @@ fprintf("\n Now you need to specify what plot you want to see:\n" + ...
     "Note: total residual is only available for mortar or fe as\n" + ...
     "you ran in the code \n" + ...
     "7.Show total residual for gmres\n" + ...
-    "8.Show total residual for cg\n")
+    "8.Show total residual for cg\n" + ...
+    "9.Test interface operator matrix\n")
 
 input_plot = input("Enter input here (enter a number between 1-8):");
 
@@ -249,6 +252,14 @@ slider = uicontrol('Style', 'slider', ...
 
 % Initial plot (optional)
 updatePlot_r_t_cg(slider, data_total_residual);
+
+% Test interface operator matrix
+    case 9
+% test for symmetry
+value = norm(interface_matrix - interface_matrix', 'fro');
+fprintf("norm(A-A', 'fro') = %d\n", value);
+% print eigenvalues
+eigenval = eig (interface_matrix)
 
     otherwise
         fprintf("Error: You did not enter a valid case!")
