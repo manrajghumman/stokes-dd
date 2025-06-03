@@ -73,7 +73,9 @@ namespace dd_stokes
     const bool ess_dir_flag,
     const bool mortar_flag,
     const unsigned int mortar_degree,
-    const unsigned int iter_meth_flag)
+    const unsigned int iter_meth_flag,
+    const bool cont_mortar_flag,
+    const bool print_interface_matrix_flag)
     : mpi_communicator(MPI_COMM_WORLD)
     , P_coarse2fine(false)
     , P_fine2coarse(false)
@@ -84,17 +86,19 @@ namespace dd_stokes
     , mortar_flag(mortar_flag)
     , mortar_degree(mortar_degree)
     , iter_meth_flag(iter_meth_flag)
+    , cont_mortar_flag((mortar_flag == 1 && mortar_degree == 0) ? false: cont_mortar_flag) // if mortar_degree is 0, use RT<dim> (0)
+    , print_interface_matrix_flag(print_interface_matrix_flag)
 	  , cg_iteration(0)
     , fe(FE_Q<dim>(degree+1),//fe for velocity
          dim,
          FE_Q<dim>(degree),//fe for pressure
          1)
     , dof_handler(triangulation)
-    ,fe_mortar([mortar_degree]() -> FESystem<dim> {
-      if (mortar_degree > 0)
+    ,fe_mortar([mortar_degree, cont_mortar_flag]() -> FESystem<dim> {
+      if (mortar_degree > 0 && cont_mortar_flag)
         return FESystem<dim>(FE_Q<dim>(mortar_degree), dim, FE_Nothing<dim>(), 1);
-      else if (mortar_degree == 0)
-        return FESystem<dim>(FE_RaviartThomas<dim>(0), 1, FE_Nothing<dim>(), 1);
+      else if (mortar_degree == 0 || !cont_mortar_flag)
+        return FESystem<dim>(FE_RaviartThomas<dim>(mortar_degree), 1, FE_Nothing<dim>(), 1);
       else
         return FESystem<dim>(FE_Nothing<dim>(), dim, FE_Nothing<dim>(), 1);
     }()) // Conditional initialization using a lambda function
@@ -176,7 +180,11 @@ namespace dd_stokes
     DoFRenumbering::component_wise(dof_handler);
 
     if (mortar_flag)
+    {
       dof_handler_mortar.distribute_dofs(fe_mortar);
+      DoFRenumbering::component_wise(dof_handler_mortar);
+    }
+      
 
     if (ess_dir_flag)
       {
@@ -288,10 +296,12 @@ namespace dd_stokes
 
         unsigned int n_u_mortar = 0, n_p_mortar = 0;
         // Enable for dim = 2, 3 right now only works for dim = 2
-        for (unsigned int i = 0; i < dim; ++i)
-        {
-          n_u_mortar += dofs_per_component_mortar[i];
-        }
+        if (cont_mortar_flag && mortar_degree > 0)
+          for (unsigned int i = 0; i < dim; ++i)
+            n_u_mortar += dofs_per_component_mortar[i];
+        else if (!cont_mortar_flag || mortar_degree == 0) // the case of RT elements
+          n_u_mortar = dofs_per_component_mortar[0];
+
         n_p_mortar = dofs_per_component_mortar[dim];
 
         n_velocity_interface = n_u_mortar;
@@ -328,12 +338,13 @@ namespace dd_stokes
         exact_normal_stress_at_nodes_fe[face] = 0;
         NormalStressTensor_Exact<dim> exact_lambda(face);
         VectorTools::interpolate(dof_handler, exact_lambda, exact_normal_stress_at_nodes_fe[face]);
-        if (mortar_flag == 1)
+        if (mortar_flag && cont_mortar_flag)
         {
           exact_normal_stress_at_nodes_mortar[face].reinit(solution_bar_mortar);
           exact_normal_stress_at_nodes_mortar[face] = 0;
           // NormalStressTensor_Exact<dim> exact_lambda(face);
-          VectorTools::interpolate(dof_handler_mortar, exact_lambda, exact_normal_stress_at_nodes_mortar[face]);
+          VectorTools::interpolate(dof_handler_mortar, exact_lambda, 
+                    exact_normal_stress_at_nodes_mortar[face]);
         }
       }
   }
@@ -1059,8 +1070,9 @@ namespace dd_stokes
     name_files<dim>(this_mpi, 1, cycle, neighbors, file_mortar, file_exact_mortar, file_residual_mortar,
                     file_y_mortar, file_exact_y_mortar, file_residual_y_mortar, file_residual_total_mortar);
 
-
     solve_bar();
+    if (print_interface_matrix_flag)
+      print_interface_matrix(cycle); // important to keep it after solve_bar()
     for (unsigned int side = 0; side < n_faces_per_cell; ++side)
       if (neighbors[side] >= 0)
         {
@@ -1421,8 +1433,9 @@ namespace dd_stokes
           // for mortar grid
           plot_approx_function<dim>(this_mpi, 1, mortar_degree, interface_dofs, 
           neighbors, lambda, plot_mortar, plot_y_mortar, file_mortar, file_y_mortar);
-          plot_exact_function<dim>(this_mpi, 1, mortar_degree, interface_dofs, 
-            neighbors, exact_normal_stress_at_nodes_mortar, plot_exact_mortar, plot_exact_y_mortar, file_exact_mortar, file_exact_y_mortar);
+          if (cont_mortar_flag)
+            plot_exact_function<dim>(this_mpi, 1, mortar_degree, interface_dofs, 
+              neighbors, exact_normal_stress_at_nodes_mortar, plot_exact_mortar, plot_exact_y_mortar, file_exact_mortar, file_exact_y_mortar);
           // plot_residual_function<dim>(this_mpi, 1, mortar_degree, interface_dofs, 
           //   neighbors, r, plot_residual_mortar, plot_residual_y_mortar, file_residual_mortar, file_residual_y_mortar);  // residual plotting is not working yet 
           // for fe grid
@@ -1627,7 +1640,8 @@ namespace dd_stokes
 
 
     solve_bar();
-    print_interface_matrix(cycle);
+    if (print_interface_matrix_flag)
+      print_interface_matrix(cycle); // important to keep it after solve_bar()
 
     for (unsigned int side = 0; side < n_faces_per_cell; ++side)
       if (neighbors[side] >= 0)
@@ -1791,8 +1805,10 @@ namespace dd_stokes
         // for mortar grid
         plot_approx_function<dim>(this_mpi, 1, mortar_degree, interface_dofs, 
         neighbors, lambda, plot_mortar, plot_y_mortar, file_mortar, file_y_mortar);
-        plot_exact_function<dim>(this_mpi, 1, mortar_degree, interface_dofs, 
-          neighbors, exact_normal_stress_at_nodes_mortar, plot_exact_mortar, plot_exact_y_mortar, file_exact_mortar, file_exact_y_mortar);
+        if (cont_mortar_flag)
+          plot_exact_function<dim>(this_mpi, 1, mortar_degree, interface_dofs, 
+            neighbors, exact_normal_stress_at_nodes_mortar, plot_exact_mortar, 
+            plot_exact_y_mortar, file_exact_mortar, file_exact_y_mortar);
         plot_residual_function<dim>(this_mpi, 1, mortar_degree, interface_dofs, 
           neighbors, r, plot_residual_mortar, plot_residual_y_mortar, file_residual_mortar, file_residual_y_mortar);  
         // for fe grid
@@ -2805,14 +2821,11 @@ namespace dd_stokes
           +".gnuplot");
     GridOut().write_gnuplot(triangulation, mesh_file);
 
-    write_dof_locations("../output/gnuplot_data/dof_loc-"
-      +Utilities::int_to_string(this_mpi)
-      +Utilities::int_to_string(cycle)
-      +".gnuplot");
-    if (mortar_flag)
-    {
-
-    }
+    if (cont_mortar_flag)
+      write_dof_locations("../output/gnuplot_data/dof_loc-"
+        +Utilities::int_to_string(this_mpi)
+        +Utilities::int_to_string(cycle)
+        +".gnuplot");
   }
 
   template <int dim>
@@ -2840,11 +2853,11 @@ namespace dd_stokes
         +Utilities::int_to_string(cycle)
           +".gnuplot");
     GridOut().write_gnuplot(triangulation_mortar, mesh_file);
-
-    write_dof_locations_mortar("../output/gnuplot_data/dof_loc_mortar-"
-      +Utilities::int_to_string(this_mpi)
-      +Utilities::int_to_string(cycle)
-      +".gnuplot");
+    if (cont_mortar_flag)
+      write_dof_locations_mortar("../output/gnuplot_data/dof_loc_mortar-"
+        +Utilities::int_to_string(this_mpi)
+        +Utilities::int_to_string(cycle)
+        +".gnuplot");
   }
 
   template <int dim>

@@ -36,10 +36,12 @@ namespace dd_stokes
   {
   public:
   MixedStokesProblemDD(const unsigned int degree,
-                       const bool ess_dir_flag          = 0,
-                       const bool mortar_flag           = 0,
-                       const unsigned int mortar_degree = 0,
-                       const unsigned int iter_meth_flag= 0);
+                       const bool ess_dir_flag                = 0,
+                       const bool mortar_flag                 = 0,
+                       const unsigned int mortar_degree       = 0,
+                       const unsigned int iter_meth_flag      = 0,
+                       const bool cont_mortar_flag            = 0,
+                       const bool print_interface_matrix_flag = 0);
 
     void
     run(const unsigned int                            refine,
@@ -133,6 +135,8 @@ namespace dd_stokes
     const unsigned int degree;
     const bool ess_dir_flag;
     const bool mortar_flag;
+    const bool cont_mortar_flag; // Flag for continuous mortar
+    const bool print_interface_matrix_flag; // Flag to print interface matrix
     const unsigned int mortar_degree;
     const unsigned int iter_meth_flag;
     unsigned int       cg_iteration;

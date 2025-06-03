@@ -82,8 +82,8 @@ main(int argc, char *argv[])
       //                  const bool mortar_flag           = 0, // 0 means no mortar, 1 means mortar
       //                  const unsigned int mortar_degree = 0
       //                  const unsigned int iter_meth_flag= 0); // 0 means CG, 1 means GMRES
-      std::vector<unsigned int> tmp(4);
-      char tmp1, tmp2;
+      std::vector<unsigned int> tmp(6);
+      char tmp1, tmp2, tmp3, tmp4;
       MPI_Barrier(MPI_COMM_WORLD);
       if (this_mpi == 0)
       {
@@ -105,25 +105,42 @@ main(int argc, char *argv[])
           if (tmp2 == 'y')
           {
             tmp[1] = 1; // mortar
+            std::cout << "\ncontinuous mortar (y/n): " <<std::endl;
+            std::cin  >> tmp3;
+            if (tmp3 == 'y')
+              tmp[4] = 1; // continuous mortar
+            else if (tmp3 == 'n')
+              tmp[4] = 0; // no continuous mortar
+            else
+              AssertThrow(false, ExcMessage("Invalid input for continuous mortar flag. Use 'y' or 'n'."));
             std::cout << "\nmortar degree:" << std::endl;
             std::cin  >> tmp[2];
           } 
           else if (tmp2 == 'n')
           {
             tmp[1] = 0; // no mortar
-            tmp[2] = 0; // no mortar degree if no mortar
+            tmp[2] = 0; // no mortar degree if no mortar // kinda stupid but need 1 for constructor whatever
+            tmp[4] = 1; // continuous mortar
           }  
           else
             AssertThrow(false, ExcMessage("Invalid input for mortar flag. Use 'y' or 'n'."));
         }
         std::cout << "\niterative method (0 for CG, 1 for GMRES): " << std::endl;
         std::cin  >> tmp[3];
+        std::cout << "\nprint interface matrix (y/n): " << std::endl;
+        std::cin  >> tmp4;
+        if (tmp4 == 'y')
+          tmp[5] = 1; // print interface matrix
+        else if (tmp4 == 'n')
+          tmp[5] = 0; // do not print interface matrix
+        else
+          AssertThrow(false, ExcMessage("Invalid input for printing interface matrix. Use 'y' or 'n'."));
       }
       // MPI_Barrier(MPI_COMM_WORLD);
       // Broadcast from root (rank 0) to all
-      MPI_Bcast(&tmp[0], 4, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-      MixedStokesProblemDD<2> stokes(1, tmp[0], tmp[1], tmp[2], tmp[3]);
-      MixedStokesProblemDD<2> mortars(1, tmp[0], tmp[1], tmp[2], tmp[3]);
+      MPI_Bcast(&tmp[0], 6, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+      MixedStokesProblemDD<2> stokes(1, tmp[0], tmp[1], tmp[2], tmp[3], tmp[4], tmp[5]);
+      // MixedStokesProblemDD<2> mortars(1, tmp[0], tmp[1], tmp[2], tmp[3], tmp[4]);
 
 
       std::string name1("M0");
@@ -131,7 +148,7 @@ main(int argc, char *argv[])
       std::string name3("M2");
       std::string name4("M3");
 
-      stokes.run(2, boundary_m2d, mesh_m2d, 1.e-10, name1, 100, 11);
+      stokes.run(5, boundary_m2d, mesh_m2d, 1.e-6, name1, 100, 11);
       // mortars.run(5, boundary_m2d, mesh_m2d, 1.e-8, name1, 500, 11);
     }
 

@@ -12,24 +12,22 @@ k = input('Enter the refinement level \n( from 1 meaning no refinement and \n4 t
 grid = input(['Enter grid (mortar = 0 or fe = 1): ']);
 
 if grid == 0
-    dir = 'interface_data/mortar';
+    dir = "interface_data/mortar";
 elseif grid == 1
-    dir = 'interface_data/fe';
+    dir = "interface_data/fe";
 else 
     error ("enter mortar = 0 or 1");
 end
 
-data = readmatrix(dir+"/lambda"+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
-data_residual = readmatrix(dir + "/residual"+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
-data_true = readmatrix(dir + "/lambda_exact"+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
+data = readmatrix(dir+"/lambda"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
+data_residual = readmatrix(dir + "/residual"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
+data_true = readmatrix(dir + "/lambda_exact"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
 
-data_y = readmatrix(dir + "/lambda_y"+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
-data_residual_y = readmatrix(dir + "/residual_y"+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
-data_true_y = readmatrix(dir + "/lambda_exact_y"+string(i)+'_'+string(j)+'_'+string(k)+'.txt');
+data_y = readmatrix(dir + "/lambda_y"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
+data_residual_y = readmatrix(dir + "/residual_y"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
+data_true_y = readmatrix(dir + "/lambda_exact_y"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
 
 data_total_residual = readmatrix(dir + "/residual_total" + string(k) + ".txt");
-
-interface_matrix = readmatrix(dir + "/interface_matrix" + '_' + string(k) + ".txt");
 
 num_timesteps = size(data, 1);
 num_values_per_timestep = size(data, 2);
@@ -79,7 +77,7 @@ fprintf("\n Now you need to specify what plot you want to see:\n" + ...
     "8.Show total residual for cg\n" + ...
     "9.Test interface operator matrix\n")
 
-input_plot = input("Enter input here (enter a number between 1-8):");
+input_plot = input("Enter input here (enter a number between 1-9):");
 
 % Plot the x values of Lambda
 
@@ -256,6 +254,7 @@ updatePlot_r_t_cg(slider, data_total_residual);
 % Test interface operator matrix
     case 9
 % test for symmetry
+interface_matrix = readmatrix(dir + "/interface_matrix" + "_" + string(k) + ".txt");
 value = norm(interface_matrix - interface_matrix', 'fro');
 fprintf("norm(A-A', 'fro') = %d\n", value);
 % print eigenvalues
