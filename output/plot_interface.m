@@ -258,7 +258,8 @@ interface_matrix = readmatrix(dir + "/interface_matrix" + "_" + string(k) + ".tx
 value = norm(interface_matrix - interface_matrix', 'fro');
 fprintf("norm(A-A', 'fro') = %d\n", value);
 % print eigenvalues
-eigenval = eig (interface_matrix)
+format shorte
+eigenval = eig(interface_matrix)
 
     otherwise
         fprintf("Error: You did not enter a valid case!")
@@ -384,7 +385,7 @@ function updatePlot_r_t_gmres(slider, data_total_residual)
 
     % Plot current data
     plot(xval,current_data, '-o');
-    xticks(xval);
+    % xticks(xval);
     xlabel('steps');
     ylabel('error in GMRES');
     title(['GMRES Residual between iter ', ...

@@ -69,14 +69,6 @@ main(int argc, char *argv[])
       mesh_m3d[7] = {3, 3, 3};
       mesh_m3d[8] = {1, 1, 1};
 
-      std::vector<unsigned int> boundary_m2d(4);
-      // enter 0 for dirichlet and 1 for neumann boundary
-      //{bottom, right, top, left}
-      boundary_m2d.assign({1, 0, 0, 0}); 
-      
-      std::vector<unsigned int> boundary_m3d(6);
-      boundary_m3d.assign({0, 0, 0, 0, 0, 0});
-
       // MixedStokesProblemDD(const unsigned int degree,
       //                  const bool ess_dir_flag          = 0, // 0 means Nitche, 1 means essential dir
       //                  const bool mortar_flag           = 0, // 0 means no mortar, 1 means mortar
@@ -142,13 +134,20 @@ main(int argc, char *argv[])
       MixedStokesProblemDD<2> stokes(1, tmp[0], tmp[1], tmp[2], tmp[3], tmp[4], tmp[5]);
       // MixedStokesProblemDD<2> mortars(1, tmp[0], tmp[1], tmp[2], tmp[3], tmp[4]);
 
+      std::vector<unsigned int> boundary_m2d(4);
+      // enter 0 for dirichlet and 1 for neumann boundary
+      //{bottom, right, top, left}
+      boundary_m2d.assign({0, 0, 0, 0}); 
+      
+      std::vector<unsigned int> boundary_m3d(6);
+      boundary_m3d.assign({0, 0, 0, 0, 0, 0});
 
       std::string name1("M0");
       std::string name2("M1");
       std::string name3("M2");
       std::string name4("M3");
 
-      stokes.run(5, boundary_m2d, mesh_m2d, 1.e-6, name1, 100, 11);
+      stokes.run(5, boundary_m2d, mesh_m2d, 1.e-10, name1, 500, 11);
       // mortars.run(5, boundary_m2d, mesh_m2d, 1.e-8, name1, 500, 11);
     }
 

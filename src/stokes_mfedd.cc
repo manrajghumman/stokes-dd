@@ -41,7 +41,7 @@
 #include <deal.II/base/smartpointer.h>
 
 #include <deal.II/lac/sparse_direct.h>
-
+#include <Eigen/Dense>
 #include <deal.II/lac/sparse_ilu.h>
 
 #include <deal.II/numerics/data_out.h>
@@ -299,7 +299,7 @@ namespace dd_stokes
         if (cont_mortar_flag && mortar_degree > 0)
           for (unsigned int i = 0; i < dim; ++i)
             n_u_mortar += dofs_per_component_mortar[i];
-        else if (!cont_mortar_flag || mortar_degree == 0) // the case of RT elements
+        else if (!cont_mortar_flag) // the case of RT elements
           n_u_mortar = dofs_per_component_mortar[0];
 
         n_p_mortar = dofs_per_component_mortar[dim];
@@ -338,6 +338,24 @@ namespace dd_stokes
         exact_normal_stress_at_nodes_fe[face] = 0;
         NormalStressTensor_Exact<dim> exact_lambda(face);
         VectorTools::interpolate(dof_handler, exact_lambda, exact_normal_stress_at_nodes_fe[face]);
+        exact_normal_stress_at_nodes_fe[face].block(0) *= -1;
+        // if (exact_normal_stress_at_nodes_fe[face].size() != 0)
+        // {
+        //   BlockVector<double> zero;
+        //   zero.reinit(exact_normal_stress_at_nodes_fe[face]);
+        //   zero = 0;
+        //   std::cout << "exact_normal_stress_at_nodes_fe[face].size() = "
+        //           << exact_normal_stress_at_nodes_fe[face].size() << std::endl;
+        //   std::cout << "zero.size() = "
+        //           << zero.size() << std::endl;
+        //   exact_normal_stress_at_nodes_fe[face].sadd(-1, zero);
+        // }
+        // if (exact_normal_stress_at_nodes_fe[face].size() != 0)
+        // {
+        //   // std::cout << "exact_normal_stress_at_nodes_fe[face].size() = "
+        //   //           << exact_normal_stress_at_nodes_fe[face].size() << std::endl;
+        //   exact_normal_stress_at_nodes_fe[face] = -1 * exact_normal_stress_at_nodes_fe[face];
+        // }
         if (mortar_flag && cont_mortar_flag)
         {
           exact_normal_stress_at_nodes_mortar[face].reinit(solution_bar_mortar);
@@ -345,6 +363,15 @@ namespace dd_stokes
           // NormalStressTensor_Exact<dim> exact_lambda(face);
           VectorTools::interpolate(dof_handler_mortar, exact_lambda, 
                     exact_normal_stress_at_nodes_mortar[face]);
+          exact_normal_stress_at_nodes_mortar[face].block(0) *= -1;
+          // if (exact_normal_stress_at_nodes_mortar[face].size() != 0)
+          // {
+          //   BlockVector<double> zero_mortar;
+          //   zero_mortar.reinit(exact_normal_stress_at_nodes_mortar[face]);
+          //   zero_mortar = 0;
+          //   exact_normal_stress_at_nodes_mortar[face].sadd(-1, zero_mortar);
+          // }
+          //   exact_normal_stress_at_nodes_mortar[face] = -1 * exact_normal_stress_at_nodes_mortar[face];
         }
       }
   }
@@ -672,6 +699,22 @@ namespace dd_stokes
     // Extracting the neumann dofs on the interface corner point shared between subdomains  
     find_interface_dofs_neumann_corner<dim>(interface_dofs_find_neumann, 
                           repeated_dofs_neumann_corner);
+    
+    compute_interface_dofs_size<dim>(interface_dofs_total, 
+                                     mpi_communicator, 
+                                     this_mpi, 
+                                     interface_dofs_size);
+
+    // if (this_mpi == 0)
+    //   for (int side = 0; side < n_faces_per_cell; ++side)
+    //     if (neighbors[side] >= 0)
+    //     {
+    //       std::cout << "\ninterface_dofs[side].size() = " << interface_dofs[side].size() << std::endl;
+    //       for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+    //         std::cout << "\ninterface_dofs[" << side << "][" << i << "] = " << interface_dofs[side][i] << std::endl;   
+    //       for (unsigned int i = 0; i < interface_dofs_total.size(); ++ i)
+    //         std::cout << "\ninterface_dofs_total[" << i << "] = " << interface_dofs_total[i] << std::endl;    
+    //     }
   }
 
 
@@ -683,6 +726,9 @@ namespace dd_stokes
   {
     TimerOutput::Scope t(computing_timer, "Assemble RHS star");
     system_rhs_star_stokes = 0;
+
+    const unsigned int this_mpi =
+      Utilities::MPI::this_mpi_process(mpi_communicator);
 
     const unsigned int n_face_q_points = fe_face_values.get_quadrature().size();
     const unsigned int dofs_per_cell   = fe.dofs_per_cell;
@@ -707,7 +753,9 @@ namespace dd_stokes
               (cell->face(face_n)->boundary_id() != 0) && (cell->face(face_n)->boundary_id() !=7)  )
               {
                 //Need to reorder faces deal.ii iterators 
-                //use a different ordering from freefem
+                //use a different ordering from freefem ... only works for 2D
+                Assert(dim == 2,
+                       ExcMessage("This function is only implemented for dim = 2."));
                 fe_face_values.reinit(cell, face_n);
                 if (face_n == 0)
                   side = 3;
@@ -717,7 +765,8 @@ namespace dd_stokes
                   side = 0;
                 else 
                   side = 2;
-
+                // std::cout << "interface_fe_function[side].block(0).size(): " << interface_fe_function[side].size() << " this_mpi, side = " << this_mpi << ", " << side << std::endl;
+                // std::cout << "\ninterface_values = " << interface_values.size() << std::endl;
                 fe_face_values[velocities].get_function_values(
                   interface_fe_function[side], interface_values);
                 for (unsigned int q_point = 0; q_point < n_face_q_points;
@@ -730,7 +779,7 @@ namespace dd_stokes
 
                   for (unsigned int i = 0; i < dofs_per_cell; ++i){
                     local_rhs(i) +=
-                      (phi_u[i] * get_normal_direction(cell->face(face_n)->boundary_id()-1)*  // phi_v_i(x_q)
+                      - (phi_u[i] * get_normal_direction(cell->face(face_n)->boundary_id()-1)*  // phi_v_i(x_q)
                        interface_values[q_point]) *    // Tn_i = lambda
                        fe_face_values.JxW(q_point);    // dx
                   }
@@ -785,6 +834,11 @@ namespace dd_stokes
     const unsigned int this_mpi =
       Utilities::MPI::this_mpi_process(mpi_communicator);
     TimerOutput::Scope t(computing_timer, "Print interface matrix");
+    const unsigned int n_processes =
+      Utilities::MPI::n_mpi_processes(mpi_communicator);
+    if ((n_processes > 2) && (n_processes % 2 == 0))
+      AssertThrow(false,
+                  ExcMessage("This function is only implemented for 2 or odd MPI processes."));
     AffineConstraints<double>   constraints;
     QGauss<dim - 1>    quad(qdegree);
     FEFaceValues<dim>  fe_face_values(fe,
@@ -796,33 +850,36 @@ namespace dd_stokes
     // std::vector<size_t> block_sizes{solution_star_mortar.block(0).size(),
     //                                 solution_star_mortar.block(1).size()};
     long                n_interface_dofs = 0;
+    FullMatrix<double>  local_matrix;
 
     const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
     std::vector<std::vector<double>> interface_data_receive(n_faces_per_cell);
     std::vector<std::vector<double>> interface_data_send(n_faces_per_cell);
     
-    interface_matrix.reinit(interface_dofs_total.size(), interface_dofs_total.size());
+    n_interface_dofs = interface_dofs_total.size(); // number of interface dofs per subdomain
+    interface_matrix.reinit(interface_dofs_size, interface_dofs_size);
+    local_matrix.reinit(n_interface_dofs, n_interface_dofs);
     interface_matrix = 0;
+    local_matrix = 0;
 
     // for (auto vec : interface_dofs)
     //   for (auto el : vec)
     //     n_interface_dofs += 1;
-    n_interface_dofs = interface_dofs_total.size();
     std::vector<BlockVector<double>> lambda_basis;
     // lambda_basis.resize(n_interface_dofs);
 
     BlockVector<double> tmp_basis;
-    BlockVector<double> output;
+    BlockVector<double> local_flux_change;
     
     if (mortar_flag)
     {
-      tmp_basis.reinit(solution_star_mortar);
-      output.reinit(solution_star_mortar);
+      tmp_basis.reinit(solution_bar_mortar);
+      local_flux_change.reinit(solution_bar_mortar);
     }
     else
     {
-      tmp_basis.reinit(solution_star_stokes);
-      output.reinit(solution_star_stokes);
+      tmp_basis.reinit(solution_bar_stokes);
+      local_flux_change.reinit(solution_bar_stokes);
     }
     // interface_fe_function[side].reinit(solution_bar_stokes);
     unsigned int ind = 0;
@@ -832,15 +889,18 @@ namespace dd_stokes
           {
             interface_data_receive[side].resize(interface_dofs[side].size(),0);
             interface_data_send[side].resize(interface_dofs[side].size(), 0);
-            interface_fe_function[side].reinit(solution_bar_stokes);
-            interface_fe_function[side] = 0;
-            output = 0;
+            // interface_fe_function[side].reinit(solution_bar_stokes);
+            for (unsigned int face = 0; face < n_faces_per_cell; ++face)
+              if (neighbors[face] >= 0)
+                interface_fe_function[face] = 0;
+            local_flux_change = 0;
             // lambda_basis[ind].reinit(solution_bar_mortar);
             // lambda_basis[ind] = 0;
 
             tmp_basis                          = 0;
             tmp_basis[interface_dofs[side][i]] = 1.0;
             if (mortar_flag)
+            {
               project_mortar(P_coarse2fine,
                             dof_handler_mortar,
                             tmp_basis,
@@ -849,10 +909,13 @@ namespace dd_stokes
                             neighbors,
                             dof_handler,
                             interface_fe_function[side]);
+                  
+              interface_fe_function[side].block(1) = 0;
+            }
             else
               interface_fe_function[side] = tmp_basis;
-            
-            interface_fe_function[side].block(1) = 0;
+
+            // std::cout << "interface_fe_function[side].size(): " << interface_fe_function[side].size() << " this_mpi, side = " << this_mpi << ", " << side << std::endl;
             assemble_rhs_star(fe_face_values);
             solve_star();
             
@@ -890,9 +953,13 @@ namespace dd_stokes
                       mpi_communicator,
                       &mpi_status);
             for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-              output[interface_dofs[side][i]] = -(interface_data_send[side][i] +
+              local_flux_change[interface_dofs[side][i]] = - (interface_data_send[side][i] +
                                                     interface_data_receive[side][i]);
-
+            for (unsigned int face = 0; side < n_faces_per_cell; ++face)
+              if (neighbors[face] >= 0 && side != face)
+                for (unsigned int i = 0; i < interface_dofs[face].size(); ++i)
+                  local_flux_change[interface_dofs[face][i]] = - interface_data_send[face][i]; // the contribution from the other side
+                                                                                          // is zero since lambda = 0 on the other side
             // project_mortar(P_fine2coarse,
             //               dof_handler,
             //               output,
@@ -901,10 +968,20 @@ namespace dd_stokes
             //               neighbors,
             //               dof_handler_mortar,
             //               lambda_basis[ind]);
+
+            // needs a method here to add the local entries to the interface matrix
             for (unsigned int i = 0; i < n_interface_dofs; ++i)
-              interface_matrix[i][ind] += output[interface_dofs[side][i]];
+              local_matrix[i][ind] += local_flux_change[interface_dofs_total[i]];
             ind += 1;
+            pcout << "\r print interface matrix: " << ind << std::flush;
           }
+    copy_matrix_local_to_global<dim>(local_matrix,
+                                      interface_dofs,
+                                      interface_dofs_size,
+                                      this_mpi,
+                                      n_processes,
+                                      mpi_communicator,         
+                                      interface_matrix);
     // if (this_mpi == 0)
     //   interface_matrix.print(std::cout);
     std::ofstream file;
@@ -1071,8 +1148,6 @@ namespace dd_stokes
                     file_y_mortar, file_exact_y_mortar, file_residual_y_mortar, file_residual_total_mortar);
 
     solve_bar();
-    if (print_interface_matrix_flag)
-      print_interface_matrix(cycle); // important to keep it after solve_bar()
     for (unsigned int side = 0; side < n_faces_per_cell; ++side)
       if (neighbors[side] >= 0)
         {
@@ -1083,6 +1158,9 @@ namespace dd_stokes
               interface_fe_function[side].reinit(solution_bar_stokes);
               interface_fe_function_fe[side].reinit(solution_bar_stokes);
         }
+    if (print_interface_matrix_flag)
+      print_interface_matrix(cycle); // important to keep it after solve_bar() and after initializing interface_fe_function
+
 
     // Extra for projections from mortar to fine grid and RHS assembly
     Quadrature<dim - 1> quad;
@@ -1151,16 +1229,16 @@ namespace dd_stokes
           {
             for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
             {
-              r[side][i] = get_normal_direction(side) * 
+              r[side][i] =  (get_normal_direction(side) * 
                               solution_bar_mortar[interface_dofs[side][i]]-
-                            get_normal_direction(side) * l0;
+                            get_normal_direction(side) * l0);
             }
           }
           else
           {
             for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
             {
-              r[side][i] = get_normal_direction(side) * 
+              r[side][i] =  get_normal_direction(side) * 
                               solution_bar_stokes[interface_dofs[side][i]]-
                            get_normal_direction(side) * l0;
             }
@@ -1324,7 +1402,7 @@ namespace dd_stokes
               // Compute Ap and with it compute alpha
               for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
                 {
-                  Ap[side][i] = -(interface_data_send[side][i] +
+                  Ap[side][i] = - (interface_data_send[side][i] +
                                   interface_data_receive[side][i]);
 
 
@@ -1640,9 +1718,6 @@ namespace dd_stokes
 
 
     solve_bar();
-    if (print_interface_matrix_flag)
-      print_interface_matrix(cycle); // important to keep it after solve_bar()
-
     for (unsigned int side = 0; side < n_faces_per_cell; ++side)
       if (neighbors[side] >= 0)
         {
@@ -1654,6 +1729,9 @@ namespace dd_stokes
               interface_fe_function_fe[side].reinit(solution_bar_stokes);
               // interface_fe_function_mortar[side].reinit(solution_bar_mortar);
         }
+    if (print_interface_matrix_flag)
+      print_interface_matrix(cycle); // important to keep it after solve_bar() and initializing interface_fe_function
+
 
     // Extra for projections from mortar to fine grid and RHS assembly
     Quadrature<dim - 1> quad;
@@ -1754,6 +1832,15 @@ namespace dd_stokes
 
     double normB    = 0;
     double normRold = 0;
+
+    // if (this_mpi == 0)
+    //   for (int side = 0; side < n_faces_per_cell; ++side)
+    //     if (neighbors[side] >= 0)
+    //     {
+    //       std::cout << "\ninterface_dofs[side].size() = " << interface_dofs[side].size() << std::endl;
+    //       for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+    //         std::cout << "\ninterface_dofs[" << side << "][" << i << "] = " << interface_dofs[side][i] << std::endl;       
+    //     }
 
     unsigned int iteration_counter = 0;
     while (iteration_counter < maxiter)
@@ -1908,7 +1995,7 @@ namespace dd_stokes
             // Compute Ap and with it compute alpha
             for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
               { 
-                Ap[side][i] = -(interface_data_send[side][i] +
+                Ap[side][i] = - (interface_data_send[side][i] +
                                 interface_data_receive[side][i]);
 
                 alpha_side[side] += r[side][i] * r[side][i];
@@ -2706,7 +2793,7 @@ namespace dd_stokes
     h = reps[this_mpi][0]; // right now this is fine since we take ration in computing order
     h = 1.0/(h*2); // will be used to compute u_order and p_order
     int n;
-    tmp = std::min(n_domains[0] * reps[this_mpi][0], n_domains[1] * reps[this_mpi][1]) * 2;
+    tmp = std::min(n_domains[0] * reps[this_mpi][0], n_domains[1] * reps[this_mpi][1]);
     MPI_Allreduce(&tmp, //sending this data
       &n, //receiving the result here
       1, //number of elements in alpha and alpha_buffer = 1+1
@@ -2734,23 +2821,43 @@ namespace dd_stokes
       order_u_total = 0;
       order_p_total = 0;
     }
-    int interface_dofs_size; 
+    // int interface_dofs_size; 
     // int tmp;
-    if (dim == 2)
+    // if (dim == 2)
+    // {
+    //   if (this_mpi % 2 == 0)
+    //     tmp = 0;
+    //   else
+    //     tmp = interface_dofs_total.size();
+    //   MPI_Allreduce(&tmp, //sending this data
+    //     &interface_dofs_size, //receiving the result here
+    //     1, //number of elements in alpha and alpha_buffer = 1+1
+    //     MPI_INT, //type of each element
+    //     MPI_SUM, //adding all elements received
+    //     mpi_communicator);
+    // }
+    // else
+    //   throw std::runtime_error("dim = 3 not yet implemented!");
+
+    double cond;
+    double symm;
+    if (print_interface_matrix_flag)
     {
-      if (this_mpi % 2 == 0)
-        tmp = 0;
-      else
-        tmp = interface_dofs_total.size();
-      MPI_Allreduce(&tmp, //sending this data
-        &interface_dofs_size, //receiving the result here
-        1, //number of elements in alpha and alpha_buffer = 1+1
-        MPI_INT, //type of each element
-        MPI_SUM, //adding all elements received
-        mpi_communicator);
+      // compute condition number of interface matrix
+      unsigned int N = interface_matrix.m();
+      Eigen::MatrixXd matrix(N, N);
+      for (unsigned int i = 0; i < N; ++i)
+        for (unsigned int j = 0; j < N; ++j)
+          matrix(i, j) = interface_matrix(i, j);
+      Eigen::JacobiSVD<Eigen::MatrixXd> svd(matrix);
+      const auto& singular_values = svd.singularValues();
+      cond = singular_values(0) / singular_values(singular_values.size() - 1);
+      // check if the matrix is symmetric
+      Eigen::MatrixXd emat(N, N);
+      emat = matrix - matrix.transpose();
+      symm = emat.norm();
     }
-    else
-      throw std::runtime_error("dim = 3 not yet implemented!");
+    //   double cond = interface_matrix.condition_number();
     
     // convergence_table.add_value("cycle", cycle);
     convergence_table.add_value("cells", n_active_cells);
@@ -2785,6 +2892,11 @@ namespace dd_stokes
       convergence_table_total.add_value("gmres_iter", gmres_iteration);
     else
       convergence_table_total.add_value("cg_iter", gmres_iteration);
+    if (print_interface_matrix_flag)
+    {
+      convergence_table_total.add_value("cond(S)", cond);
+      convergence_table_total.add_value("||S-S'||", symm);
+    }
     convergence_table_total.add_value("residual", residual);
 
     u_l2_error_old = u_l2_error;
@@ -3081,8 +3193,10 @@ namespace dd_stokes
             output_dof_results(cycle);
             pcout << "dof output written" << std::endl;
             if (mortar_flag)
+            {
               output_dof_results_mortar(cycle);
                 pcout << "dof mortar output written" << std::endl;
+            }
 
             if (iter_meth_flag == 0)
             {
@@ -3238,11 +3352,21 @@ namespace dd_stokes
     convergence_table_total.set_precision("p_L2", 3);
     convergence_table_total.set_precision("u_order", 2);
     convergence_table_total.set_precision("p_order", 2);
+    if (print_interface_matrix_flag)
+    {
+      convergence_table_total.set_precision("cond(S)", 3);
+      convergence_table_total.set_precision("||S-S'||", 3);
+    }
 
     convergence_table_total.set_scientific("residual", true);
     convergence_table_total.set_scientific("h", true);
     convergence_table_total.set_scientific("u_L2", true);
     convergence_table_total.set_scientific("p_L2", true);
+    if (print_interface_matrix_flag)
+    {
+      convergence_table_total.set_scientific("cond(S)", true);
+      convergence_table_total.set_scientific("||S-S'||", true);
+    }
 
     // convergence_table_total.set_tex_caption("cells", "\\# cells");
     convergence_table_total.set_tex_caption("h", "\\ h");
@@ -3257,6 +3381,8 @@ namespace dd_stokes
     convergence_table_total.set_tex_caption("residual", "residual");
     convergence_table_total.set_tex_caption("u_L2", "$L^2$-error (u)");
     convergence_table_total.set_tex_caption("p_L2", "$L^2$-error (p)");
+    if (print_interface_matrix_flag)
+      convergence_table_total.set_tex_caption("||S-S'||", "$||S-S'||$");
 
     convergence_table_total.set_tex_format("h", "r");
     convergence_table_total.set_tex_format("interface_dofs", "r");

@@ -168,6 +168,7 @@ namespace dd_stokes
 
     unsigned long n_velocity_interface;
     unsigned long n_velocity_interface_fe;
+    int           interface_dofs_size;
 
     // Subdomain coordinates (assuming logically rectangular blocks)
     Point<dim> p1;

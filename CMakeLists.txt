@@ -20,6 +20,22 @@ SET(TARGET_SRC ${TARGET_SRC}  ${TARGET_INC})
 
 cmake_minimum_required(VERSION 3.13.4)
 
+# Try to find Eigen3, check standard and custom locations
+find_path(EIGEN3_INCLUDE_DIR Eigen/Dense
+    PATHS
+        /usr/include/eigen3         # typical on Ubuntu/Debian
+        /usr/local/include/eigen3   # sometimes here
+        /opt/homebrew/include/eigen3 # for Mac Homebrew on Apple Silicon
+)
+
+if(EIGEN3_INCLUDE_DIR)
+    message(STATUS "Found Eigen3 in ${EIGEN3_INCLUDE_DIR}")
+    include_directories(${EIGEN3_INCLUDE_DIR})
+else()
+    message(FATAL_ERROR "Could not find Eigen3!")
+endif()
+
+# Try to find dealii, check standard and custom locations
 find_package(deal.II 9.5.0
   HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
   )

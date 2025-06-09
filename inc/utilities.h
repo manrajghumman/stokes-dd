@@ -1433,6 +1433,135 @@ namespace dd_stokes
 
   template <int dim>
   void
+  compute_interface_dofs_size(std::vector<double> &interface_dofs_total,
+                              const MPI_Comm      &mpi_communicator,
+                              const unsigned int  &this_mpi,
+                              int                 &interface_dofs_size)
+  {
+    interface_dofs_size = 0;
+    int tmp = 0;
+
+    // If dim == 2, we can use MPI_Allreduce to get the total size of the interface dofs
+    // If dim == 3, this is not implemented yet
+    if (dim == 2)
+    {
+      if (this_mpi % 2 == 0)
+        tmp = 0;
+      else
+        tmp = interface_dofs_total.size();
+      MPI_Allreduce(&tmp, //sending this data
+        &interface_dofs_size, //receiving the result here
+        1, //number of elements in alpha and alpha_buffer = 1+1
+        MPI_INT, //type of each element
+        MPI_SUM, //adding all elements received
+        mpi_communicator);
+    }
+    else
+      throw std::runtime_error("dim = 3 not yet implemented!");
+  }
+
+  template <int dim>
+  void
+  copy_matrix_local_to_global(FullMatrix<double>                      &local_matrix,
+                              std::vector<std::vector<unsigned int>>  &interface_dofs,
+                              int                                     &interface_dofs_size,
+                              const unsigned int                      &this_mpi,
+                              const unsigned int                      &n_processes,
+                              const MPI_Comm                          &mpi_communicator,        
+                              FullMatrix<double>                      &interface_matrix)
+  {
+    // This function is not implemented yet
+    // It should copy the local matrix to the global matrix
+    // for the case of dim == 3
+    if (dim == 3)
+      AssertThrow(false, 
+        ExcMessage("copy_matrix_local_to_global not implemented for dim = 3!"));
+    
+    // only 1 interface
+    if (n_processes == 2)
+      interface_matrix = local_matrix;
+    else if (n_processes % 2 == 1) // when odd number of subdomains, all interfaces are vertical interfaces
+    {
+      int per_interface_dofs;
+      if (this_mpi == 0)
+      {
+        int row, col;
+        per_interface_dofs = interface_dofs[1].size();
+        row = per_interface_dofs;
+        col = row;
+        for (int j = 0; j < col; ++j)
+          for (int i = 0; i < row; ++i)
+            interface_matrix[i][j] += local_matrix[i][j]; // first interface
+      }
+      else if (this_mpi != n_processes - 1) // if not the last subdomain
+      {
+        int row, col, global_row, global_col;
+        per_interface_dofs = interface_dofs[1].size();
+        /* 
+        first enter the flux differences from the right interface 
+        for lambda = (1,0,...,0) on the left interface
+        */
+        row = 2 * per_interface_dofs;
+        col = per_interface_dofs;
+        global_col = (this_mpi - 1) * per_interface_dofs;
+        global_row = global_col + per_interface_dofs;
+        for (int j = 0; j < col; ++j)
+          for (int i = per_interface_dofs; i < row; ++i)
+            interface_matrix[global_row + i][global_col + j] += local_matrix[i][j]; // last interface
+        /* 
+        now enter the flux differences from the left interface 
+        for lambda = (1,0,...,0) on the right interface
+        */
+        row = per_interface_dofs;
+        col = 2 * per_interface_dofs;
+        global_col = this_mpi * per_interface_dofs;
+        global_row = global_col - per_interface_dofs;
+        for (int j = per_interface_dofs; j < col; ++j)
+          for (int i = 0; i < row; ++i)
+            interface_matrix[global_row + i][global_col + j] += local_matrix[i][j]; // last interface
+        /* 
+        now enter the flux differences on the right interface 
+        for basis eg lambda = (1,0,...,0) on the right interface
+        */
+        row = per_interface_dofs;
+        col = row;
+        global_row = this_mpi * per_interface_dofs;
+        global_col = global_row;
+        for (int j = 0; j < col; ++j)
+          for (int i = 0; i < row; ++i)
+            interface_matrix[global_row + i][global_col + j] += local_matrix[i][j]; // last interface
+      }
+      else // if the last subdomain
+      {
+        // DO NOTHING HERE, ALL DATA ALREADY ADDED BY PREVIOUS DOMAINS
+      }
+    }
+    else // when even number of subdomains
+    {
+      AssertThrow(false, 
+        ExcMessage("print_interface_matrix with n_processes even not yet implemented!"));
+    }
+    std::vector<double> matrix_data_send(interface_dofs_size * interface_dofs_size, 0.0);
+    std::vector<double> matrix_data_recv(interface_dofs_size * interface_dofs_size, 0.0);
+    for (unsigned int i = 0; i < interface_dofs_size; ++i)
+      for (unsigned int j = 0; j < interface_dofs_size; ++j)
+        matrix_data_send[i * interface_dofs_size + j] = interface_matrix[i][j];
+    // Now we need to sum the matrix data across all processes
+    MPI_Allreduce(&matrix_data_send[0], //sending this data
+                  &matrix_data_recv[0], //receiving the result here
+                  interface_dofs_size * interface_dofs_size, //number of elements in alpha and alpha_buffer
+                  MPI_DOUBLE, //type of each element
+                  MPI_SUM, //adding all elements received
+                  mpi_communicator);
+    // Now we copy the data back to the interface_matrix
+    for (unsigned int i = 0; i < interface_dofs_size; ++i)
+      for (unsigned int j = 0; j < interface_dofs_size; ++j)
+        interface_matrix[i][j] = matrix_data_recv[i * interface_dofs_size + j];
+  }
+
+
+  template <int dim>
+  void
   project_mortar(Projector::Projector<dim> &proj,
                  const DoFHandler<dim> &    dof1,
                  BlockVector<double> &      in_vec,
