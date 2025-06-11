@@ -9,13 +9,6 @@
 #ifndef STOKES_MFEDD_FILES_H
 #define STOKES_MFEDD_FILES_H
 
-// #include <map>
-// #include <deal.II/lac/block_vector.h>
-
-// #include <deal.II/lac/sparse_direct.h>
-
-// #include <deal.II/lac/sparse_ilu.h>
-
 #include <filesystem>
 
 namespace dd_stokes

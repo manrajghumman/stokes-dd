@@ -1,6 +1,5 @@
 /* ---------------------------------------------------------------------
  * Utilities:
- *  - Elasticity related - physical tensors and asymmetry operators
  *  - DD & mortar related - mesh subdivision, mortar projection
  * ---------------------------------------------------------------------
  *
