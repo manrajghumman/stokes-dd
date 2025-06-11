@@ -19,44 +19,6 @@ else
     error ("enter mortar = 0 or 1");
 end
 
-data = readmatrix(dir+"/lambda"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
-data_residual = readmatrix(dir + "/residual"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
-data_true = readmatrix(dir + "/lambda_exact"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
-
-data_y = readmatrix(dir + "/lambda_y"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
-data_residual_y = readmatrix(dir + "/residual_y"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
-data_true_y = readmatrix(dir + "/lambda_exact_y"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
-
-data_total_residual = readmatrix(dir + "/residual_total" + string(k) + ".txt");
-
-num_timesteps = size(data, 1);
-num_values_per_timestep = size(data, 2);
-min_val = min(data(:));
-max_val = max(data(:));
-min_true = min(data_true(:));
-max_true = max(data_true(:));
-min_val = min(min_true, min_val);
-max_val = max(max_true, max_val);
-
-min_val_y = min(data_y(:));
-max_val_y = max(data_y(:));
-min_true_y = min(data_true_y(:));
-max_true_y = max(data_true_y(:));
-min_val_y = min(min_true_y, min_val_y);
-max_val_y = max(max_true_y, max_val_y);
-
-% fprintf("num_timesteps = %d\n", num_timesteps);
-% fprintf("num_values_per_timestep = %d\n", num_values_per_timestep);
-% 
-% fprintf("min_val = %f\n", min_val);
-% fprintf("max_val = %f\n", max_val);
-% 
-% fprintf("min_val_y = %f\n", min_val_y);
-% fprintf("max_val_y = %f\n", max_val_y);
-
-data_x = data;
-data_residual_x = data_residual;
-data_true_x = data_true;
 
 fprintf("\n Now you need to specify what plot you want to see:\n" + ...
     "1. Show the x component of Lambda\n" + ...
@@ -78,6 +40,38 @@ fprintf("\n Now you need to specify what plot you want to see:\n" + ...
     "9.Test interface operator matrix\n")
 
 input_plot = input("Enter input here (enter a number between 1-9):");
+
+if (input_plot ~= 9)
+    data = readmatrix(dir+"/lambda"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
+    data_residual = readmatrix(dir + "/residual"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
+    data_true = readmatrix(dir + "/lambda_exact"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
+    
+    data_y = readmatrix(dir + "/lambda_y"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
+    data_residual_y = readmatrix(dir + "/residual_y"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
+    data_true_y = readmatrix(dir + "/lambda_exact_y"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
+    
+    data_total_residual = readmatrix(dir + "/residual_total" + string(k) + ".txt");
+    
+    data_x = data;
+    data_residual_x = data_residual;
+    data_true_x = data_true;
+    
+    num_timesteps = size(data, 1);
+    num_values_per_timestep = size(data, 2);
+    min_val = min(data(:));
+    max_val = max(data(:));
+    min_true = min(data_true(:));
+    max_true = max(data_true(:));
+    min_val = min(min_true, min_val);
+    max_val = max(max_true, max_val);
+    
+    min_val_y = min(data_y(:));
+    max_val_y = max(data_y(:));
+    min_true_y = min(data_true_y(:));
+    max_true_y = max(data_true_y(:));
+    min_val_y = min(min_true_y, min_val_y);
+    max_val_y = max(max_true_y, max_val_y);
+end
 
 % Plot the x values of Lambda
 

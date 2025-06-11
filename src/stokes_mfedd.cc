@@ -18,7 +18,6 @@
 
 
 #include <deal.II/fe/fe_q.h>
-#include <deal.II/fe/fe_dgq.h>
 #include <deal.II/fe/fe_raviart_thomas.h>
 #include <deal.II/fe/fe_system.h>
 #include <deal.II/fe/fe_values.h>
@@ -60,6 +59,9 @@
 #include "../inc/data.h"
 #include "../inc/stokes_mfedd.h"
 #include "../inc/utilities.h"
+#include "../inc/interface.h"
+#include "../inc/files.h"
+#include "../inc/plot_interface.h"
 
 
 namespace dd_stokes
@@ -76,18 +78,18 @@ namespace dd_stokes
     const unsigned int iter_meth_flag,
     const bool cont_mortar_flag,
     const bool print_interface_matrix_flag)
-    : mpi_communicator(MPI_COMM_WORLD)
-    , P_coarse2fine(false)
-    , P_fine2coarse(false)
-    , gmres_iteration(0)
-    , n_domains(dim, 0)//vector of type unsigned int initialized to size dim with entries = 0
-    , degree(degree)
+    : degree(degree)
     , ess_dir_flag(ess_dir_flag)
     , mortar_flag(mortar_flag)
     , mortar_degree(mortar_degree)
     , iter_meth_flag(iter_meth_flag)
     , cont_mortar_flag((mortar_flag == 1 && mortar_degree == 0) ? false: cont_mortar_flag) // if mortar_degree is 0, use RT<dim> (0)
     , print_interface_matrix_flag(print_interface_matrix_flag)
+    , mpi_communicator(MPI_COMM_WORLD)
+    , P_coarse2fine(false)
+    , P_fine2coarse(false)
+    , n_domains(dim, 0)//vector of type unsigned int initialized to size dim with entries = 0
+    , gmres_iteration(0)
 	  , cg_iteration(0)
     , fe(FE_Q<dim>(degree+1),//fe for velocity
          dim,
@@ -576,10 +578,10 @@ namespace dd_stokes
         else
         {
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
-          for (unsigned int j = 0; j < dofs_per_cell; ++j)
-            system_matrix.add(local_dof_indices[i],
-                              local_dof_indices[j],
-                              local_matrix(i, j));
+            for (unsigned int j = 0; j < dofs_per_cell; ++j)
+              system_matrix.add(local_dof_indices[i],
+                                local_dof_indices[j],
+                                local_matrix(i, j));
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             system_rhs_bar_stokes(local_dof_indices[i]) += local_rhs(i);
         }
@@ -667,7 +669,7 @@ namespace dd_stokes
                     if (std::find (interface_dofs[side].begin(), interface_dofs[side].end(), el) 
                                                                   == interface_dofs[side].end()){
                                                                       interface_dofs[side].push_back(el);
-                                                                      interface_dofs_total.push_back(el);
+                                                                      // interface_dofs_total.push_back(el);
                                                                   }
                     
                     if (std::find (interface_dofs_find_neumann[side].begin(), interface_dofs_find_neumann[side].end(), el) 
@@ -678,34 +680,40 @@ namespace dd_stokes
               }
             }
       }
+    // compute the total interface dofs for this subdomain
+    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+      for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+        if (std::find(interface_dofs_total.begin(), interface_dofs_total.end(), 
+            interface_dofs[side][i]) == interface_dofs_total.end())
+          interface_dofs_total.push_back(interface_dofs[side][i]);
+    
+    // if (mortar_flag == 0)
+    // { 
+    //   // Extracting the dirichlet and neumann dofs on the outside bdry shared between subdomains
+    //   find_interface_dofs_dirichlet<dim>(dof_handler, interface_dofs, local_face_dof_indices, 
+    //     n_velocity_interface, neighbors, repeated_dofs);
+    //   find_interface_dofs_neumann<dim>(dof_handler, interface_dofs, local_face_dof_indices, 
+    //     n_velocity_interface, neighbors, repeated_dofs_neumann);
+    // }
+    // else
+    // {
+    //   // Extracting the dirichlet and neumann dofs on the outside bdry shared between subdomains
+    //   find_interface_dofs_dirichlet<dim>(dof_handler_mortar, interface_dofs, local_face_dof_indices, 
+    //     n_velocity_interface, neighbors, repeated_dofs);
+    //   find_interface_dofs_neumann<dim>(dof_handler_mortar, interface_dofs, local_face_dof_indices, 
+    //     n_velocity_interface, neighbors, repeated_dofs_neumann);
+    // }
 
-    if (mortar_flag == 0)
-    { 
-      // Extracting the dirichlet and neumann dofs on the outside bdry shared between subdomains
-      find_interface_dofs_dirichlet<dim>(dof_handler, interface_dofs, local_face_dof_indices, 
-        n_velocity_interface, neighbors, repeated_dofs);
-      find_interface_dofs_neumann<dim>(dof_handler, interface_dofs, local_face_dof_indices, 
-        n_velocity_interface, neighbors, repeated_dofs_neumann);
-    }
-    else
-    {
-      // Extracting the dirichlet and neumann dofs on the outside bdry shared between subdomains
-      find_interface_dofs_dirichlet<dim>(dof_handler_mortar, interface_dofs, local_face_dof_indices, 
-        n_velocity_interface, neighbors, repeated_dofs);
-      find_interface_dofs_neumann<dim>(dof_handler_mortar, interface_dofs, local_face_dof_indices, 
-        n_velocity_interface, neighbors, repeated_dofs_neumann);
-    }
-
-    // Extracting the neumann dofs on the interface corner point shared between subdomains  
-    find_interface_dofs_neumann_corner<dim>(interface_dofs_find_neumann, 
-                          repeated_dofs_neumann_corner);
+    // // Extracting the neumann dofs on the interface corner point shared between subdomains  
+    // find_interface_dofs_neumann_corner<dim>(interface_dofs_find_neumann, 
+    //                       repeated_dofs_neumann_corner);
     
     compute_interface_dofs_size<dim>(interface_dofs_total, 
                                      mpi_communicator, 
                                      this_mpi, 
                                      interface_dofs_size);
 
-    // if (this_mpi == 0)
+    // if (this_mpi == 1)
     //   for (int side = 0; side < n_faces_per_cell; ++side)
     //     if (neighbors[side] >= 0)
     //     {
@@ -724,11 +732,14 @@ namespace dd_stokes
   MixedStokesProblemDD<dim>::assemble_rhs_star(
     FEFaceValues<dim> &fe_face_values)
   {
-    TimerOutput::Scope t(computing_timer, "Assemble RHS star");
+    // TimerOutput::Scope t(computing_timer, "Assemble RHS star");
     system_rhs_star_stokes = 0;
 
     const unsigned int this_mpi =
       Utilities::MPI::this_mpi_process(mpi_communicator);
+
+    // if (this_mpi == 1)
+    //   std::cout << "Assembling RHS star for this_mpi = " << this_mpi << std::endl;
 
     const unsigned int n_face_q_points = fe_face_values.get_quadrature().size();
     const unsigned int dofs_per_cell   = fe.dofs_per_cell;
@@ -742,7 +753,8 @@ namespace dd_stokes
     std::vector<Tensor<1, dim>>          phi_u(dofs_per_cell);
     const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
     int side;
-
+    // if (this_mpi == 1)
+    //   std::cout << "Assembling RHS star for this_mpi = " << this_mpi << std::endl;
     for (const auto &cell : dof_handler.active_cell_iterators())
       {
         local_rhs                   = 0;
@@ -818,7 +830,7 @@ namespace dd_stokes
   template <int dim>
   void MixedStokesProblemDD<dim>::solve_star()
   {
-      TimerOutput::Scope t(computing_timer, "Solve star");
+      // TimerOutput::Scope t(computing_timer, "Solve star");
     {
       A_direct.vmult (solution_star_stokes, system_rhs_star_stokes);
       if (ess_dir_flag)
@@ -881,22 +893,33 @@ namespace dd_stokes
       tmp_basis.reinit(solution_bar_stokes);
       local_flux_change.reinit(solution_bar_stokes);
     }
+    for (unsigned int face = 0; face < n_faces_per_cell; ++face)
+      {
+        interface_data_receive[face].resize(interface_dofs[face].size(),0); // intialize for all faces/sides!
+        interface_data_send[face].resize(interface_dofs[face].size(), 0);
+      }
+    // std::cout << "\nhello1"<< " this_mpi = " << this_mpi << std::endl;
     // interface_fe_function[side].reinit(solution_bar_stokes);
     unsigned int ind = 0;
     for (unsigned int side = 0; side < n_faces_per_cell; ++side)
       if (neighbors[side] >= 0)
         for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
           {
-            interface_data_receive[side].resize(interface_dofs[side].size(),0);
-            interface_data_send[side].resize(interface_dofs[side].size(), 0);
-            // interface_fe_function[side].reinit(solution_bar_stokes);
+            for (unsigned int face = 0; face < n_faces_per_cell; ++face)
+            {
+              std::fill(interface_data_receive[face].begin(), 
+                        interface_data_receive[face].end(), 0.0);
+              std::fill(interface_data_send[face].begin(), 
+                        interface_data_send[face].end(), 0.0);
+            }
+            
             for (unsigned int face = 0; face < n_faces_per_cell; ++face)
               if (neighbors[face] >= 0)
                 interface_fe_function[face] = 0;
-            local_flux_change = 0;
-            // lambda_basis[ind].reinit(solution_bar_mortar);
-            // lambda_basis[ind] = 0;
 
+            local_flux_change = 0;
+
+            // std::cout << "\nhello2, side = " << side << " ind = " << ind << " this_mpi = " << this_mpi << std::endl;
             tmp_basis                          = 0;
             tmp_basis[interface_dofs[side][i]] = 1.0;
             if (mortar_flag)
@@ -914,11 +937,21 @@ namespace dd_stokes
             }
             else
               interface_fe_function[side] = tmp_basis;
-
-            // std::cout << "interface_fe_function[side].size(): " << interface_fe_function[side].size() << " this_mpi, side = " << this_mpi << ", " << side << std::endl;
+            // std::cout << "\nhello2.5, side = " << side << " ind = " << ind << " this_mpi = " << this_mpi << std::endl;
+            // std::cout << "interface_fe_function[side].size(): " << interface_fe_function[side].size() 
+            //           << " this_mpi, side, ind = " << this_mpi << ", " << side << ", " << ind 
+            //           << std::endl;
+            // if (this_mpi == 1 && ind == 1)
+            //   for (unsigned int j = 0; j < interface_fe_function[side].size(); ++j)
+            //     {
+            //       std::cout << "interface_fe_function[side][j]: " << interface_fe_function[side][j] << ", j = " << j 
+            //                 << " this_mpi, side, ind = " << this_mpi << ", " << side << ", " << ind 
+            //                 << std::endl;
+            //     }
             assemble_rhs_star(fe_face_values);
+            // std::cout << "\nhello2.51, side = " << side << " ind = " << ind << " this_mpi = " << this_mpi << std::endl;
             solve_star();
-            
+            // std::cout << "\nhello2.6, side = " << side << " ind = " << ind << " this_mpi = " << this_mpi << std::endl;
             if (mortar_flag)
             {
               project_mortar(P_fine2coarse,
@@ -935,10 +968,15 @@ namespace dd_stokes
                                                     solution_star_mortar[interface_dofs[side][i]];
               }
             else
-              for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-                interface_data_send[side][i] = get_normal_direction(side) *
-                                                  solution_star_stokes[interface_dofs[side][i]];
-
+              for (unsigned int face = 0; face < n_faces_per_cell; ++face)
+                if (neighbors[face] >= 0)
+                  for (unsigned int i = 0; i < interface_dofs[face].size(); ++i)
+                    interface_data_send[face][i] = get_normal_direction(face) *
+                                                  solution_star_stokes[interface_dofs[face][i]];
+              // for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+              //   interface_data_send[side][i] = get_normal_direction(side) *
+              //                                     solution_star_stokes[interface_dofs[side][i]];
+            // std::cout << "\nhello3, side = " << side << " ind = " << ind << " this_mpi = " << this_mpi << std::endl
             MPI_Send(&interface_data_send[side][0],
                       interface_dofs[side].size(),
                       MPI_DOUBLE,
@@ -952,29 +990,26 @@ namespace dd_stokes
                       neighbors[side],
                       mpi_communicator,
                       &mpi_status);
+            // std::cout << "\nhello4, side = " << side <<" ind = " << ind << " this_mpi = " << this_mpi << std::endl;
             for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
               local_flux_change[interface_dofs[side][i]] = - (interface_data_send[side][i] +
-                                                    interface_data_receive[side][i]);
-            for (unsigned int face = 0; side < n_faces_per_cell; ++face)
+                                                                  interface_data_receive[side][i]);
+            for (unsigned int face = 0; face < n_faces_per_cell; ++face)
               if (neighbors[face] >= 0 && side != face)
                 for (unsigned int i = 0; i < interface_dofs[face].size(); ++i)
                   local_flux_change[interface_dofs[face][i]] = - interface_data_send[face][i]; // the contribution from the other side
                                                                                           // is zero since lambda = 0 on the other side
-            // project_mortar(P_fine2coarse,
-            //               dof_handler,
-            //               output,
-            //               quad,
-            //               constraints,
-            //               neighbors,
-            //               dof_handler_mortar,
-            //               lambda_basis[ind]);
-
-            // needs a method here to add the local entries to the interface matrix
+            // needs a method later to add the local entries to the interface matrix
             for (unsigned int i = 0; i < n_interface_dofs; ++i)
-              local_matrix[i][ind] += local_flux_change[interface_dofs_total[i]];
+              local_matrix(i,ind) += local_flux_change[interface_dofs_total[i]];
             ind += 1;
-            pcout << "\r print interface matrix: " << ind << std::flush;
+            // pcout << "\r print interface matrix: " << ind << std::flush;
           }
+    // if (this_mpi == 1)
+    //   {
+    //     std::cout << "\n local_matrix before exchange: \n" << std::endl;
+    //     local_matrix.print(std::cout);
+    //   }
     copy_matrix_local_to_global<dim>(local_matrix,
                                       interface_dofs,
                                       interface_dofs_size,
@@ -984,24 +1019,33 @@ namespace dd_stokes
                                       interface_matrix);
     // if (this_mpi == 0)
     //   interface_matrix.print(std::cout);
-    std::ofstream file;
-    std::string dir = "../output/interface_data/";
-    //name file
-    if (mortar_flag)
-          dir = dir + "mortar";
-    else
-          dir = dir + "/fe";
-    file.open(dir + "/interface_matrix" + "_" 
-                  + Utilities::int_to_string(cycle, 1) + ".txt", 
-                  std::ios::out | std::ios::trunc);
-    //insert data from interface_matrix into file
-    for (unsigned int i = 0; i < n_interface_dofs; ++i)
-      {
-        for (unsigned int j = 0; j < n_interface_dofs; ++j)
-          file << interface_matrix[i][j] << " ";
-        file << "\n";
-      }
-    file.close();
+    // if (this_mpi == 0)
+    // {
+    //   std::cout << "this_mpi = " << this_mpi
+    //             << "\n before printing interface_matrix: \n" << std::endl;
+    //             interface_matrix.print(std::cout);
+    // }
+    if (this_mpi == 0)
+    {
+      std::ofstream file;
+      std::string dir = "../output/interface_data/";
+      //name file
+      if (mortar_flag)
+            dir = dir + "mortar";
+      else
+            dir = dir + "/fe";
+      file.open(dir + "/interface_matrix" + "_" 
+                    + Utilities::int_to_string(cycle, 1) + ".txt", 
+                    std::ios::out | std::ios::trunc);
+      //insert data from interface_matrix into file
+      for (unsigned int i = 0; i < interface_dofs_size; ++i)
+        {
+          for (unsigned int j = 0; j < interface_dofs_size; ++j)
+            file << interface_matrix[i][j] << " ";
+          file << "\n";
+        }
+      file.close();
+    }
   }
 
 
