@@ -1,26 +1,21 @@
 clc
 clear all
-% input_domain
-i = input('Enter the domain number: ') - 1;
-% input_edge
-j = input(['Enter the edge number \n' ...
-    '(1, 2, 3, 4 stand for bottom, right,\n top, left\n' ...
-    'Note: The edge must be an interface \nor you will get error): ']) - 1;
-% input_refinement
-k = input('Enter the refinement level \n( from 1 meaning no refinement and \n4 the highest refinement): ') - 1;
-% input_grid (mortar/fe)
-grid = input(['Enter grid (mortar = 0 or fe = 1): ']);
 
-if grid == 0
-    dir = "interface_data/mortar";
-elseif grid == 1
-    dir = "interface_data/fe";
-else 
-    error ("enter mortar = 0 or 1");
-end
+% % input_refinement
+% k = input('Enter the refinement level \n( from 1 meaning no refinement and \n4 the highest refinement): ') - 1;
+% % input_grid (mortar/fe)
+% grid = input(['Enter grid (mortar = 0 or fe = 1): ']);
+% 
+% if grid == 0
+%     dir = "interface_data/mortar";
+% elseif grid == 1
+%     dir = "interface_data/fe";
+% else 
+%     error ("enter mortar = 0 or 1");
+% end
 
 
-fprintf("\n Now you need to specify what plot you want to see:\n" + ...
+fprintf("You need to specify what plot you want to see:\n" + ...
     "1. Show the x component of Lambda\n" + ...
     "2. Show the y component of Lambda\n" + ...
     "3. Show the x component of the Residual(only cg)\n" + ...
@@ -42,6 +37,24 @@ fprintf("\n Now you need to specify what plot you want to see:\n" + ...
 input_plot = input("Enter input here (enter a number between 1-9):");
 
 if (input_plot ~= 9)
+    % input_domain
+    i = input('Enter the domain number: ') - 1;
+    % input_edge
+    j = input(['Enter the edge number \n' ...
+        '(1, 2, 3, 4 stand for bottom, right,\n top, left\n' ...
+        'Note: The edge must be an interface \nor you will get error): ']) - 1;
+    % input_refinement
+    k = input('Enter the refinement level \n( from 1 meaning no refinement and \n4 the highest refinement): ') - 1;
+    % input_grid (mortar/fe)
+    grid = input(['Enter grid (mortar = 0 or fe = 1): ']);
+    
+    if grid == 0
+        dir = "interface_data/mortar";
+    elseif grid == 1
+        dir = "interface_data/fe";
+    else 
+        error ("enter mortar = 0 or 1");
+    end
     data = readmatrix(dir+"/lambda"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
     data_residual = readmatrix(dir + "/residual"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
     data_true = readmatrix(dir + "/lambda_exact"+string(i)+"_"+string(j)+"_"+string(k)+".txt");
@@ -71,6 +84,19 @@ if (input_plot ~= 9)
     max_true_y = max(data_true_y(:));
     min_val_y = min(min_true_y, min_val_y);
     max_val_y = max(max_true_y, max_val_y);
+else
+    % input_refinement
+    k = input('Enter the refinement level \n( from 1 meaning no refinement and \n4 the highest refinement): ') - 1;
+    % input_grid (mortar/fe)
+    grid = input(['Enter grid (mortar = 0 or fe = 1): ']);
+    
+    if grid == 0
+        dir = "interface_data/mortar";
+    elseif grid == 1
+        dir = "interface_data/fe";
+    else 
+        error ("enter mortar = 0 or 1");
+    end
 end
 
 % Plot the x values of Lambda
@@ -253,7 +279,7 @@ value = norm(interface_matrix - interface_matrix', 'fro');
 fprintf("norm(A-A', 'fro') = %d\n", value);
 % print eigenvalues
 format shorte
-eigenval = eig(interface_matrix)
+[V, D] = eig(interface_matrix)
 
     otherwise
         fprintf("Error: You did not enter a valid case!")

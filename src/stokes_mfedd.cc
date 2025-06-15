@@ -1003,7 +1003,7 @@ namespace dd_stokes
             for (unsigned int i = 0; i < n_interface_dofs; ++i)
               local_matrix(i,ind) += local_flux_change[interface_dofs_total[i]];
             ind += 1;
-            // pcout << "\r print interface matrix: " << ind << std::flush;
+            pcout << "\r print interface matrix: " << ind << std::flush;
           }
     // if (this_mpi == 1)
     //   {
