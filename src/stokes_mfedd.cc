@@ -1612,7 +1612,10 @@ namespace dd_stokes
         else if(k_counter>maxiter-2)
           pcout << "\n  GMRES doesn't converge after  " << k_counter << " iterations!\n";
         else if(k_counter == interface_dofs_size-1)
-          pcout << "\n  GMRES doesn't converge after " << interface_dofs_size << " iterations!\n";
+          {
+            pcout << "\n  GMRES doesn't converge after " << interface_dofs_size << " iterations!\n";
+            break;
+          }
 
 
         
