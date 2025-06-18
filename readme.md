@@ -21,7 +21,7 @@ Flag for choosing to print interface matrix. Is a compute
 intensive operation but can import interface matrix into matlab
 and play with it. Only works in 2D!
 
-The output is in /build in folders 
+The output is in /output in folders 
  1. interface_data: has lambda, exact lambda, residual data and interface matrix. 
  To plot these run the plot_interface.m file from /build and follow on screen instructions.
  2. gnuplot_data: has mesh data and dof locations can be plotted with gnuplot.

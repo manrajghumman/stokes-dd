@@ -5,7 +5,7 @@
 
 set dim              = 2
 set degree           = 1
-set refinements      = 6
+set refinements      = 5
 set quad_degree      = 11
 set initial_grid_2D  = 1, 1
 set initial_grid_3D  = 1, 1, 1
@@ -13,12 +13,13 @@ set initial_grid_3D  = 1, 1, 1
 #################################################################################
 # Boundary condition enforcement 
 # (D for Dirichlet and N for Neumann)
-# {bottom face, right face, top face, left face, out of plane face, inside plane face} 
-# Example: N, D, N, D represents bottom and top Neumann and other 2 sides Dirichlet in 2D
+# Faces: {bottom, right, top, left, out of plane, inside plane}
+# Example 2D: N, D, N, D represents bottom and top Neumann and other 
+# 2 sides Dirichlet
 
 subsection External Boundary Conditions
 	set essential_dirichlet = no
-	set boundary_2D         = N, D, D, D
+	set boundary_2D         = D, N, D, N
 	set boundary_3D         = N, D, D, D, D, D
 end
 
@@ -41,8 +42,9 @@ subsection Solver
 end
 
 #################################################################################
-# Compute and print the matrix for interface operator (currently only works for m x 1 # grid setup)
+# Compute and print the matrix for interface operator 
+# (currently only works for m x 1 # grid setup)
 
 subsection Print Interface Matrix
-	set print_interface_matrix = no
+	set print_interface_matrix = yes
 end

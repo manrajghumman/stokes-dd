@@ -39,47 +39,49 @@ namespace dd_stokes
     // interface_data directory
     {
       // Check if interface_data directory exists
-    if (!fs::exists("../output/interface_data/"))
-      fs::create_directory("../output/interface_data/");
-    if (!fs::exists("../output/interface_data/mortar"))
-      fs::create_directory("../output/interface_data/mortar");
-    if (!fs::exists("../output/interface_data/fe"))
-      fs::create_directory("../output/interface_data/fe");
-    // Remove old files in the interface_data directory
-    for (const auto &entry : fs::directory_iterator("../output/interface_data/fe"))
-      {
-        const auto &path = entry.path();
-        std::string filename = path.filename().string();
-        if (entry.is_regular_file() && filename[0] != '.')
-          fs::remove(entry.path());
+      if (!fs::exists("../output/interface_data/"))
+        fs::create_directory("../output/interface_data/");
+      // Check if interface_data/mortar sub directory exists
+      if (!fs::exists("../output/interface_data/mortar"))
+        fs::create_directory("../output/interface_data/mortar");
+      // Check if interface_data/fe sub directory exists
+      if (!fs::exists("../output/interface_data/fe"))
+        fs::create_directory("../output/interface_data/fe");
+      // Remove old files in the interface_data directory
+      for (const auto &entry : fs::directory_iterator("../output/interface_data/fe"))
+        {
+          const auto &path = entry.path();
+          std::string filename = path.filename().string();
+          if (entry.is_regular_file() && filename[0] != '.')
+            fs::remove(entry.path());
+        }
+      for (const auto &entry : fs::directory_iterator("../output/interface_data/mortar"))
+        {
+          const auto &path = entry.path();
+          std::string filename = path.filename().string();
+          if (entry.is_regular_file() && filename[0] != '.')
+            fs::remove(entry.path());
       }
-    for (const auto &entry : fs::directory_iterator("../output/interface_data/mortar"))
+      // // If the directory exists, but is not a directory, throw an error
+      // if (fs::exists("../output/interface_data/") && !fs::is_directory("../output/interface_data/"))
+      //   throw std::runtime_error("../output/interface_data/ is not a directory.");
+      
       {
-        const auto &path = entry.path();
-        std::string filename = path.filename().string();
-        if (entry.is_regular_file() && filename[0] != '.')
-          fs::remove(entry.path());
+        // create .gitkeep (empty file)
+        std::ofstream(std::string("../output/interface_data/mortar") + "/.gitkeep").close();
+        // create .gitignore
+        std::ofstream gitignore1(std::string("../output/interface_data/mortar") + "/.gitignore");
+        gitignore1 << "*\n!.gitkeep\n";
+        gitignore1.close();
       }
-    // // If the directory exists, but is not a directory, throw an error
-    // if (fs::exists("../output/interface_data/") && !fs::is_directory("../output/interface_data/"))
-    //   throw std::runtime_error("../output/interface_data/ is not a directory.");
-    
-    {
-      // create .gitkeep (empty file)
-      std::ofstream(std::string("../output/interface_data/mortar") + "/.gitkeep").close();
-      // create .gitignore
-      std::ofstream gitignore1(std::string("../output/interface_data/mortar") + "/.gitignore");
-      gitignore1 << "*\n!.gitkeep\n";
-      gitignore1.close();
-    }
-    {
-      // create .gitkeep (empty file)
-      std::ofstream(std::string("../output/interface_data/fe") + "/.gitkeep").close();
-      // create .gitignore
-      std::ofstream gitignore2(std::string("../output/interface_data/fe") + "/.gitignore");
-      gitignore2 << "*\n!.gitkeep\n";
-      gitignore2.close();
-    }
+      {
+        // create .gitkeep (empty file)
+        std::ofstream(std::string("../output/interface_data/fe") + "/.gitkeep").close();
+        // create .gitignore
+        std::ofstream gitignore2(std::string("../output/interface_data/fe") + "/.gitignore");
+        gitignore2 << "*\n!.gitkeep\n";
+        gitignore2.close();
+      }
     }
     // paraview_data directory
     {

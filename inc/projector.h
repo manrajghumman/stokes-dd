@@ -109,17 +109,6 @@ namespace Projector
     const bool fe_is_system    = (n_components != 1);
     const bool fe_is_primitive = fe.is_primitive();
 
-    // const unsigned int this_mpi =
-    //   Utilities::MPI::this_mpi_process(mpi_communicator);
-    // if (this_mpi == 0)
-      // {
-      //   std::cout << "this_mpi = " << 0 << ", n_components = " << n_components
-      //             << ", \nn_function_components = " << n_function_components
-      //             << ", fe_is_system = " << fe_is_system
-      //             << ", fe_is_primitive = " << fe_is_primitive
-      //             << std::endl;
-      // }
-
     const unsigned int dofs_per_face = fe.dofs_per_face;
 
     copy_data.cell          = cell;
@@ -183,7 +172,7 @@ namespace Projector
 
           if (fe_is_system)
             // FE has several components
-            {//std::cout<<cell->face(face)->boundary_id()<<std::endl;
+            {
               boundary_functions
                 .find(cell->face(face)->
 

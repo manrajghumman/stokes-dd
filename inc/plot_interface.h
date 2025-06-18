@@ -125,7 +125,7 @@ namespace dd_stokes
 
   template <int dim>
   void
-  plot_exact_function( const unsigned int                &this_mpi,
+  plot_exact_function( const unsigned int      &this_mpi,
               const unsigned int               &write_mortar,
               const unsigned int               &mortar_degree,
               std::vector<std::vector<unsigned int>> &interface_dofs,
@@ -225,7 +225,7 @@ namespace dd_stokes
 
   template <int dim>
   void
-  plot_residual_function(const unsigned int               &this_mpi,
+  plot_residual_function(const unsigned int      &this_mpi,
                 const unsigned int               &write_mortar,
                 const unsigned int               &mortar_degree,
                 std::vector<std::vector<unsigned int>> &interface_dofs,

@@ -96,6 +96,7 @@ namespace dd_stokes
          FE_Q<dim>(degree),//fe for pressure
          1)
     , dof_handler(triangulation)
+    , dof_handler_mortar(triangulation_mortar)
     ,fe_mortar([mortar_degree, cont_mortar_flag]() -> FESystem<dim> {
       if (mortar_degree > 0 && cont_mortar_flag)
         return FESystem<dim>(FE_Q<dim>(mortar_degree), dim, FE_Nothing<dim>(), 1);
@@ -104,7 +105,6 @@ namespace dd_stokes
       else
         return FESystem<dim>(FE_Nothing<dim>(), dim, FE_Nothing<dim>(), 1);
     }()) // Conditional initialization using a lambda function
-    , dof_handler_mortar(triangulation_mortar)
     , pcout(std::cout,
             (Utilities::MPI::this_mpi_process(mpi_communicator) == 0))
     , computing_timer(mpi_communicator,
@@ -120,13 +120,9 @@ namespace dd_stokes
   MixedStokesProblemDD<dim>::make_grid_and_dofs(const std::vector<unsigned int> &boundary_def)
   {
     TimerOutput::Scope t(computing_timer, "Make grid and DoFs");
-    // A_preconditioner.reset();
-    system_matrix.clear();
-    // preconditioner_matrix.clear();
 
-    // double             lower_left, upper_right;
-    // const unsigned int n_processes =
-    //   Utilities::MPI::n_mpi_processes(mpi_communicator);
+    system_matrix.clear();
+    
     const unsigned int this_mpi =
       Utilities::MPI::this_mpi_process(mpi_communicator);
 
@@ -347,39 +343,14 @@ namespace dd_stokes
         NormalStressTensor_Exact<dim> exact_lambda(face);
         VectorTools::interpolate(dof_handler, exact_lambda, exact_normal_stress_at_nodes_fe[face]);
         exact_normal_stress_at_nodes_fe[face].block(0) *= -1;
-        // if (exact_normal_stress_at_nodes_fe[face].size() != 0)
-        // {
-        //   BlockVector<double> zero;
-        //   zero.reinit(exact_normal_stress_at_nodes_fe[face]);
-        //   zero = 0;
-        //   std::cout << "exact_normal_stress_at_nodes_fe[face].size() = "
-        //           << exact_normal_stress_at_nodes_fe[face].size() << std::endl;
-        //   std::cout << "zero.size() = "
-        //           << zero.size() << std::endl;
-        //   exact_normal_stress_at_nodes_fe[face].sadd(-1, zero);
-        // }
-        // if (exact_normal_stress_at_nodes_fe[face].size() != 0)
-        // {
-        //   // std::cout << "exact_normal_stress_at_nodes_fe[face].size() = "
-        //   //           << exact_normal_stress_at_nodes_fe[face].size() << std::endl;
-        //   exact_normal_stress_at_nodes_fe[face] = -1 * exact_normal_stress_at_nodes_fe[face];
-        // }
+
         if (mortar_flag && cont_mortar_flag)
         {
           exact_normal_stress_at_nodes_mortar[face].reinit(solution_bar_mortar);
           exact_normal_stress_at_nodes_mortar[face] = 0;
-          // NormalStressTensor_Exact<dim> exact_lambda(face);
           VectorTools::interpolate(dof_handler_mortar, exact_lambda, 
                     exact_normal_stress_at_nodes_mortar[face]);
           exact_normal_stress_at_nodes_mortar[face].block(0) *= -1;
-          // if (exact_normal_stress_at_nodes_mortar[face].size() != 0)
-          // {
-          //   BlockVector<double> zero_mortar;
-          //   zero_mortar.reinit(exact_normal_stress_at_nodes_mortar[face]);
-          //   zero_mortar = 0;
-          //   exact_normal_stress_at_nodes_mortar[face].sadd(-1, zero_mortar);
-          // }
-          //   exact_normal_stress_at_nodes_mortar[face] = -1 * exact_normal_stress_at_nodes_mortar[face];
         }
       }
   }
@@ -866,8 +837,6 @@ namespace dd_stokes
                                        update_quadrature_points |
                                        update_JxW_values);
 
-    // std::vector<size_t> block_sizes{solution_star_mortar.block(0).size(),
-    //                                 solution_star_mortar.block(1).size()};
     long                n_interface_dofs = 0;
     FullMatrix<double>  local_matrix;
 
@@ -1697,11 +1666,7 @@ namespace dd_stokes
     solution.reinit(solution_bar_stokes);
     solution = solution_bar_stokes;
     solution.sadd(1.0, solution_star_stokes);
-
-    // solution_star_stokes.sadd(1.0, solution_bar_stokes);
     pcout<<"finished local_gmres"<<"\n";
-
-
   }
 
 
@@ -3280,7 +3245,6 @@ namespace dd_stokes
             
             triangulation.clear();
             dof_handler.clear();
-            // convergence_table.clear();
             faces_on_interface.clear();
             faces_on_interface_mortar.clear();
             interface_dofs.clear();
@@ -3297,179 +3261,20 @@ namespace dd_stokes
           }
       }
 
-    convergence_table.set_precision("residual", 3);
-    convergence_table.set_precision("h", 1);
-    convergence_table.set_precision("u_L2", 3);
-    convergence_table.set_precision("p_L2", 3);
-    convergence_table.set_precision("u_order", 2);
-    convergence_table.set_precision("p_order", 2);
-    // convergence_table.set_precision("u_H1", 3);
-    // convergence_table.set_precision("p_H1", 3);
-    // convergence_table.set_precision("ux_H1", 3);
-    // convergence_table.set_precision("uy_H1", 3);
-
-    convergence_table.set_scientific("residual", true);
-    convergence_table.set_scientific("h", true);
-    convergence_table.set_scientific("u_L2", true);
-    convergence_table.set_scientific("p_L2", true);
-    // convergence_table.set_scientific("u_order", true);
-    // convergence_table.set_scientific("p_order", true);
-    // convergence_table.set_scientific("u_H1", true);
-    // convergence_table.set_scientific("p_H1", true);
-    // convergence_table.set_scientific("ux_H1", true);
-    // convergence_table.set_scientific("uy_H1", true);
-
-    convergence_table.set_tex_caption("cells", "\\# cells");
-    convergence_table.set_tex_caption("h", "\\ h");
-    // convergence_table.set_tex_caption("dofs", "\\# dofs");
-    convergence_table.set_tex_caption("interface_dofs", "\\ dofs");
-    if (iter_meth_flag == 1)
-      convergence_table.set_tex_caption("gmres_iter", "gmres iter");
-    else
-      convergence_table.set_tex_caption("cg_iter", "cg iter");
-    convergence_table.set_tex_caption("u_order", "u order");
-    convergence_table.set_tex_caption("p_order", "p order");
-    convergence_table.set_tex_caption("residual", "residual");
-    convergence_table.set_tex_caption("u_L2", "$L^2$-error (u)");
-    convergence_table.set_tex_caption("p_L2", "$L^2$-error (p)");
-    // convergence_table.set_tex_caption("u_H1", "$H^1$-error (u)");
-    // convergence_table.set_tex_caption("p_H1", "$H^1$-error (p)");
-    // convergence_table.set_tex_caption("ux_H1", "$H^1$-error (ux)");
-    // convergence_table.set_tex_caption("uy_H1", "$H^1$-error (uy)");
-
-    convergence_table.set_tex_format("h", "r");
-    convergence_table.set_tex_format("interface_dofs", "r");
-    // convergence_table.set_tex_format("dofs_m", "r");
-
-    // convergence_table.add_column_to_supercolumn("cycle", "n   h");
-    // convergence_table.add_column_to_supercolumn("h", "n   h");
-    
-    // convergence_table.evaluate_convergence_rates(
-    //       "u_L2", ConvergenceTable::reduction_rate);
-    // convergence_table.evaluate_convergence_rates(
-    //       "u_L2", "h", ConvergenceTable::reduction_rate_log2);
-    // convergence_table.evaluate_convergence_rates(
-    //       "p_L2", ConvergenceTable::reduction_rate);
-    // convergence_table.evaluate_convergence_rates(
-    //       "p_L2", "h", ConvergenceTable::reduction_rate_log2);
-    // convergence_table.evaluate_convergence_rates(
-    //       "u_H1", ConvergenceTable::reduction_rate);
-    // convergence_table.evaluate_convergence_rates(
-    //       "u_H1", ConvergenceTable::reduction_rate_log2);
-    // convergence_table.evaluate_convergence_rates(
-    //       "p_H1", ConvergenceTable::reduction_rate);
-    // convergence_table.evaluate_convergence_rates(
-    //       "p_H1", ConvergenceTable::reduction_rate_log2);
-    // convergence_table.evaluate_convergence_rates(
-    //       "ux_H1", ConvergenceTable::reduction_rate);
-    // convergence_table.evaluate_convergence_rates(
-    //       "ux_H1", ConvergenceTable::reduction_rate_log2);
-    // convergence_table.evaluate_convergence_rates(
-    //       "uy_H1", ConvergenceTable::reduction_rate);
-    // convergence_table.evaluate_convergence_rates(
-    //       "uy_H1", ConvergenceTable::reduction_rate_log2);
-
-    // convergence_table.set_precision("u_L2-rate", 3);
-    // convergence_table.set_precision("p_L2-rate", 3);
-    // convergence_table.set_precision("u_H1-rate", 3);
-    // convergence_table.set_precision("p_H1-rate", 3);
-    // convergence_table.set_precision("ux_H1-rate", 3);
-    // convergence_table.set_precision("uy_H1-rate", 3);
-
-    // std::cout << std::endl;
-    // convergence_table.write_text(std::cout);
-
-    // std::string conv_filename = "convergence_mpi" + Utilities::int_to_string(this_mpi) + ".tex";
-
-    // std::ofstream table_file(conv_filename);
-    // convergence_table.write_tex(table_file);
-
-  for (unsigned int i = 0; i<n_processes; ++i)
-  {
-    MPI_Barrier(mpi_communicator);
-    if (this_mpi == i)
-    { 
-      convergence_table.write_text(std::cout);
-
-      std::string conv_filename = "../output/convg_tables/convergence_mpi" + Utilities::int_to_string(this_mpi) + ".tex";
-      std::cout << "this_mpi = " << this_mpi << "\n" << std::endl;
-      std::ofstream table_file(conv_filename);
-      convergence_table.write_tex(table_file);
-    }
-  }
-  
-  MPI_Barrier(mpi_communicator);
-  if (this_mpi == 0)
-  {
-    convergence_table_total.set_precision("residual", 3);
-    convergence_table_total.set_precision("h", 1);
-    convergence_table_total.set_precision("u_L2", 3);
-    convergence_table_total.set_precision("p_L2", 3);
-    convergence_table_total.set_precision("u_order", 2);
-    convergence_table_total.set_precision("p_order", 2);
-    if (print_interface_matrix_flag)
-    {
-      convergence_table_total.set_precision("cond(S)", 3);
-      convergence_table_total.set_precision("||S-S'||", 3);
-    }
-
-    convergence_table_total.set_scientific("residual", true);
-    convergence_table_total.set_scientific("h", true);
-    convergence_table_total.set_scientific("u_L2", true);
-    convergence_table_total.set_scientific("p_L2", true);
-    if (print_interface_matrix_flag)
-    {
-      convergence_table_total.set_scientific("cond(S)", true);
-      convergence_table_total.set_scientific("||S-S'||", true);
-    }
-
-    // convergence_table_total.set_tex_caption("cells", "\\# cells");
-    convergence_table_total.set_tex_caption("h", "\\ h");
-    // convergence_table_total.set_tex_caption("dofs", "\\# dofs");
-    convergence_table_total.set_tex_caption("interface_dofs", "\\ dofs");
-    if (iter_meth_flag == 1)
-      convergence_table_total.set_tex_caption("gmres_iter", "gmres iter");
-    else
-      convergence_table_total.set_tex_caption("cg_iter", "cg iter");
-    convergence_table_total.set_tex_caption("u_order", "u order");
-    convergence_table_total.set_tex_caption("p_order", "p order");
-    convergence_table_total.set_tex_caption("residual", "residual");
-    convergence_table_total.set_tex_caption("u_L2", "$L^2$-error (u)");
-    convergence_table_total.set_tex_caption("p_L2", "$L^2$-error (p)");
-    if (print_interface_matrix_flag)
-      convergence_table_total.set_tex_caption("||S-S'||", "$||S-S'||$");
-
-    convergence_table_total.set_tex_format("h", "r");
-    convergence_table_total.set_tex_format("interface_dofs", "r");
-    // convergence_table_total.set_tex_format("dofs_m", "r");
-
-    convergence_table_total.write_text(std::cout);
-
-    std::string conv_filename = std::string("../output/convg_table_total/convergence_total") + ".tex";
-    std::cout << "total error\n" << std::endl;
-    std::ofstream table_file(conv_filename);
-    convergence_table_total.write_tex(table_file);
-  }
-  
-    
-  
-
-    triangulation.clear();
-    dof_handler.clear();
+    print_individual_table_l2<dim>(convergence_table,
+                                   iter_meth_flag,
+                                   this_mpi,
+                                   n_processes,
+                                   mpi_communicator);
+    print_total_table_l2<dim>(convergence_table_total,
+                              iter_meth_flag,
+                              print_interface_matrix_flag,
+                              this_mpi);
+                              
     convergence_table.clear();
     convergence_table_total.clear();
     faces_on_interface.clear();
     faces_on_interface_mortar.clear();
-    interface_dofs.clear();
-    interface_fe_function.clear();
-    interface_fe_function_mortar.clear();
-    if (mortar_flag)
-      {
-        triangulation_mortar.clear();
-        P_fine2coarse.reset();
-        P_coarse2fine.reset();
-      }
-    dof_handler_mortar.clear();
   }
 
   template class MixedStokesProblemDD<2>;

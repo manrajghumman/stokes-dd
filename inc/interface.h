@@ -257,6 +257,436 @@ namespace dd_stokes
         interface_matrix(i,j) = matrix_data_recv[i * interface_dofs_size + j];
   }
 
+
+  //---------------old deprecated functions------------------
+  template <int dim>
+  void 
+  constant_residual_two (std::vector<std::vector<unsigned int>> &interface_dofs,
+                        std::vector<int>                       &neighbors,
+                        std::vector<unsigned int>              &repeated_dofs,
+                        std::vector<unsigned int>              &repeated_dofs_neumann,
+                        std::vector<std::vector<double>>       &r)
+  {
+    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
+    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+      if (neighbors[side] >= 0)
+        for (unsigned int i = 0; i < interface_dofs[side].size(); ++i){
+          if (std::find(repeated_dofs.begin(), repeated_dofs.end(), 
+                            interface_dofs[side][i]) != repeated_dofs.end())
+          { 
+            if (i == 0 || i == 1){
+              r[side][i] = r[side][i+4]; 
+            }
+            else{
+              r[side][i] = r[side][i+2]; 
+            }
+          }
+
+          if (std::find(repeated_dofs_neumann.begin(), repeated_dofs_neumann.end(), 
+                            interface_dofs[side][i]) != repeated_dofs_neumann.end())
+          { 
+            if (i == 0 || i == 1){
+              r[side][i] = r[side][i+4]; 
+            }
+            else{
+              r[side][i] = r[side][i+2]; 
+            }
+          }
+        }
+  }
+
+  template <int dim>
+  void 
+  constant_Ap_two (std::vector<std::vector<unsigned int>>    &interface_dofs,
+                  std::vector<int>                          &neighbors,
+                  std::vector<unsigned int>                 &repeated_dofs,
+                  std::vector<unsigned int>                 &repeated_dofs_neumann,
+                  std::vector<std::vector<double>>          &interface_data_send)
+  {
+    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
+    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+      if (neighbors[side] >= 0)
+      {
+        for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+        {
+          if (std::find(repeated_dofs.begin(), repeated_dofs.end(), 
+              interface_dofs[side][i]) != repeated_dofs.end())
+          { 
+            if (i == 0 || i == 1)
+            { 
+              interface_data_send[side][i] = interface_data_send[side][i+4];
+            }
+            else
+            {
+              interface_data_send[side][i] = interface_data_send[side][i+2];
+            }
+          }
+
+          if (std::find(repeated_dofs_neumann.begin(), repeated_dofs_neumann.end(), 
+              interface_dofs[side][i]) != repeated_dofs_neumann.end())
+          { 
+            if (i == 0 || i == 1)
+            { 
+              interface_data_send[side][i] = interface_data_send[side][i+4]; 
+            }
+            else 
+            {
+              interface_data_send[side][i] = interface_data_send[side][i+2]; 
+            }
+          }
+        }
+      }
+  }
+
+  template <int dim>
+  void 
+  average_residual_two (std::vector<std::vector<unsigned int>> &interface_dofs,
+                        std::vector<int>                       &neighbors,
+                        std::vector<unsigned int>              &repeated_dofs,
+                        std::vector<unsigned int>              &repeated_dofs_neumann,
+                        std::vector<std::vector<double>>       &r)
+  {
+    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
+    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+      if (neighbors[side] >= 0)
+        for (unsigned int i = 0; i < interface_dofs[side].size(); ++i){
+          if (std::find(repeated_dofs.begin(), repeated_dofs.end(), 
+                            interface_dofs[side][i]) != repeated_dofs.end())
+          { 
+            if (i == 0 || i == 1){
+              r[side][i] = (r[side][i+4]+r[side][i])/2; 
+              r[side][i+4] = r[side][i];
+            }
+            else{
+              r[side][i] = (r[side][i+2]+r[side][i])/2; 
+              r[side][i+2] = r[side][i];
+            }
+          }
+
+          if (std::find(repeated_dofs_neumann.begin(), repeated_dofs_neumann.end(), 
+                            interface_dofs[side][i]) != repeated_dofs_neumann.end())
+          { 
+            if (i == 0 || i == 1){
+              r[side][i] = (r[side][i+4]+r[side][i])/2; 
+              r[side][i+4] = r[side][i];
+            }
+            else{
+              r[side][i] = (r[side][i+2]+r[side][i])/2; 
+              r[side][i+2] = r[side][i];
+            }
+          }
+        }
+  }
+
+   template <int dim>
+  void 
+  average_Ap_two (std::vector<std::vector<unsigned int>>    &interface_dofs,
+                  std::vector<int>                          &neighbors,
+                  std::vector<unsigned int>                 &repeated_dofs,
+                  std::vector<unsigned int>                 &repeated_dofs_neumann,
+                  std::vector<std::vector<double>>          &interface_data_send)
+  {
+    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
+    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+      if (neighbors[side] >= 0)
+      {
+        for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+        {
+          if (std::find(repeated_dofs.begin(), repeated_dofs.end(), 
+              interface_dofs[side][i]) != repeated_dofs.end())
+          { 
+            if (i == 0 || i == 1)
+            { 
+              interface_data_send[side][i] = (interface_data_send[side][i+4]+interface_data_send[side][i])/2;
+              interface_data_send[side][i+4] = interface_data_send[side][i];
+            }
+            else
+            {
+              interface_data_send[side][i] = (interface_data_send[side][i+2]+interface_data_send[side][i])/2;
+              interface_data_send[side][i+2] = interface_data_send[side][i];
+            }
+          }
+
+          if (std::find(repeated_dofs_neumann.begin(), repeated_dofs_neumann.end(), 
+              interface_dofs[side][i]) != repeated_dofs_neumann.end())
+          { 
+            if (i == 0 || i == 1)
+            { 
+              interface_data_send[side][i] = (interface_data_send[side][i+4]+interface_data_send[side][i])/2; 
+              interface_data_send[side][i+4] = interface_data_send[side][i];
+            }
+            else 
+            {
+              interface_data_send[side][i] = (interface_data_send[side][i+2]+interface_data_send[side][i])/2; 
+              interface_data_send[side][i+2] = interface_data_send[side][i];
+            }
+          }
+        }
+      }
+  }
+
+  template <int dim>
+  void 
+  average_residual_three (std::vector<std::vector<unsigned int>> &interface_dofs,
+                          std::vector<int>                       &neighbors,
+                          std::vector<unsigned int>              &repeated_dofs,
+                          std::vector<unsigned int>              &repeated_dofs_neumann,
+                          std::vector<std::vector<double>>       &r)
+  {
+    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
+    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+      if (neighbors[side] >= 0)
+        for (unsigned int i = 0; i < interface_dofs[side].size(); ++i){
+          if (std::find(repeated_dofs.begin(), repeated_dofs.end(), 
+                            interface_dofs[side][i]) != repeated_dofs.end())
+          { 
+            if (i == 0 || i == 1){
+              r[side][i] = (r[side][i+4]+r[side][i+2]+r[side][i])/3; 
+              r[side][i+2] = r[side][i];
+              r[side][i+4] = r[side][i];
+            }
+            else{
+              r[side][i] = (r[side][i+2]+r[side][i]+r[side][i-4])/3; 
+              r[side][i+2] = r[side][i];
+              r[side][i-4] = r[side][i];
+            }
+          }
+
+          if (std::find(repeated_dofs_neumann.begin(), repeated_dofs_neumann.end(), 
+                            interface_dofs[side][i]) != repeated_dofs_neumann.end())
+          { 
+            if (i == 0 || i == 1){
+              r[side][i] = (r[side][i+4]+r[side][i+2]+r[side][i])/3; 
+              r[side][i+2] = r[side][i];
+              r[side][i+4] = r[side][i];
+            }
+            else{
+              r[side][i] = (r[side][i+2]+r[side][i]+r[side][i-4])/3; 
+              r[side][i+2] = r[side][i];
+              r[side][i-4] = r[side][i];
+            }
+          }
+        }
+  }
+
+   template <int dim>
+  void 
+  average_Ap_three (std::vector<std::vector<unsigned int>>    &interface_dofs,
+                    std::vector<int>                          &neighbors,
+                    std::vector<unsigned int>                 &repeated_dofs,
+                    std::vector<unsigned int>                 &repeated_dofs_neumann,
+                    std::vector<std::vector<double>>          &interface_data_send)
+  {
+    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
+    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+      if (neighbors[side] >= 0)
+      {
+        for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+        {
+          if (std::find(repeated_dofs.begin(), repeated_dofs.end(), 
+              interface_dofs[side][i]) != repeated_dofs.end())
+          { 
+            if (i == 0 || i == 1)
+            { 
+              interface_data_send[side][i] = (interface_data_send[side][i+4]
+                          +interface_data_send[side][i]+interface_data_send[side][i+2])/3;
+              interface_data_send[side][i+4] = interface_data_send[side][i];
+              interface_data_send[side][i+2] = interface_data_send[side][i];
+            }
+            else
+            {
+              interface_data_send[side][i] = (interface_data_send[side][i+2]
+                          +interface_data_send[side][i]+interface_data_send[side][i-4])/3;
+              interface_data_send[side][i+2] = interface_data_send[side][i];
+              interface_data_send[side][i-4] = interface_data_send[side][i];
+            }
+          }
+
+          if (std::find(repeated_dofs_neumann.begin(), repeated_dofs_neumann.end(), 
+              interface_dofs[side][i]) != repeated_dofs_neumann.end())
+          { 
+            if (i == 0 || i == 1)
+            { 
+              interface_data_send[side][i] = (interface_data_send[side][i+4]
+                            +interface_data_send[side][i]+interface_data_send[side][i+2])/3; 
+              interface_data_send[side][i+4] = interface_data_send[side][i];
+              interface_data_send[side][i+2] = interface_data_send[side][i];
+            }
+            else 
+            {
+              interface_data_send[side][i] = (interface_data_send[side][i+2]
+                              +interface_data_send[side][i]+interface_data_send[side][i-4])/3; 
+              interface_data_send[side][i+2] = interface_data_send[side][i];
+              interface_data_send[side][i-4] = interface_data_send[side][i];
+            }
+          }
+        }
+      }
+  }
+
+  // Extracting the dirichlet dofs on the outside bdry shared between subdomains 
+  template <int dim, int spacedim = dim>
+  void 
+  find_interface_dofs_dirichlet (DoFHandler<dim, spacedim>                           &dof_handler,
+                           std::vector<std::vector<unsigned int>>    &interface_dofs,
+                           std::vector<types::global_dof_index>      &local_face_dof_indices,
+                           unsigned long                             &n_velocity_interface,
+                           std::vector<int>                          &neighbors,
+                           std::vector<unsigned int>                 &repeated_dofs)
+  { 
+    repeated_dofs.clear();
+    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
+    for (const auto &cell: dof_handler.active_cell_iterators())
+    {
+      for (unsigned int face_n = 0;
+             face_n < GeometryInfo<dim>::faces_per_cell;
+             ++face_n)
+          if (cell->at_boundary(face_n) &&
+              (cell->face(face_n)->boundary_id() == 0))
+            { 
+              cell->face(face_n)->get_dof_indices(local_face_dof_indices, 0);
+              for (auto el: local_face_dof_indices)
+                if (el < n_velocity_interface)
+                  for (int side = 0; side < n_faces_per_cell;++side)
+                    if (neighbors[side]>=0)
+                      if (std::find (interface_dofs[side].begin(), interface_dofs[side].end(), el) 
+                                      != interface_dofs[side].end())//enters this statement if local_dof_indices[i] belongs to interface_dofs[side]
+                        if (std::find (repeated_dofs.begin(), repeated_dofs.end(), el) 
+                                                                  == repeated_dofs.end())
+                          {
+                            repeated_dofs.push_back(el);
+                          }
+              }       
+    }
+  }
+
+  // Extracting the neumann dofs on the outside bdry shared between subdomains 
+  template <int dim, int spacedim =  dim>
+  void 
+  find_interface_dofs_neumann (DoFHandler<dim, spacedim>                     &dof_handler,
+                         std::vector<std::vector<unsigned int>>    &interface_dofs,
+                         std::vector<types::global_dof_index>      &local_face_dof_indices,
+                         unsigned long                             &n_velocity_interface,
+                         std::vector<int>                          &neighbors,
+                         std::vector<unsigned int>                 &repeated_dofs_neumann)
+  {
+    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
+    for (const auto &cell: dof_handler.active_cell_iterators())
+    {
+        repeated_dofs_neumann.clear();  
+        for (unsigned int face_n = 0;
+             face_n < GeometryInfo<dim>::faces_per_cell;
+             ++face_n)
+          if (cell->at_boundary(face_n) &&
+              (cell->face(face_n)->boundary_id() == 7))
+            { 
+              cell->face(face_n)->get_dof_indices(local_face_dof_indices, 0);
+              for (auto el: local_face_dof_indices)
+                if (el < n_velocity_interface)
+                  for (int side = 0; side<n_faces_per_cell;++side)
+                    if (neighbors[side]>=0)
+                      if (std::find (interface_dofs[side].begin(), interface_dofs[side].end(), el) 
+                                      != interface_dofs[side].end())//enters this statement if local_dof_indices[i] belongs to interface_dofs[side]
+                        if (std::find (repeated_dofs_neumann.begin(), repeated_dofs_neumann.end(), el) 
+                                                                  == repeated_dofs_neumann.end())
+                          {
+                            repeated_dofs_neumann.push_back(el);
+                          }
+              }
+    }
+  }
+
+  // Remove dirichlet dof on interface from interface_dofs
+  template <int dim, int spacedim = dim>
+  void 
+  remove_interface_dirichlet_dofs (DoFHandler<dim, spacedim>                 &dof_handler,
+                         std::vector<std::vector<unsigned int>>    &interface_dofs,
+                         std::vector<types::global_dof_index>      &local_face_dof_indices,
+                         unsigned long                             &n_velocity_interface)
+  {
+    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
+    unsigned int side = 0;
+    for (const auto &cell: dof_handler.active_cell_iterators())
+      {
+        for (unsigned int face_n = 0;
+             face_n < n_faces_per_cell;
+             ++face_n)
+          if (cell->at_boundary(face_n) &&
+              (cell->face(face_n)->boundary_id() == 0))
+            { 
+              cell->face(face_n)->get_dof_indices(local_face_dof_indices, 0);
+              // pcout << "side = " << side << std::endl;
+              side = face_n;
+              // pcout << "side = " << side << std::endl;
+              for (auto el : local_face_dof_indices){
+                if (el < n_velocity_interface){
+                  // pcout << "interface_dofs[side] = " << interface_dofs[side].size() << std::endl;
+                  for (int i = 0; i<4; ++i){
+                    interface_dofs[i].erase(std::remove(interface_dofs[i].begin(), 
+                                        interface_dofs[i].end(), el), interface_dofs[i].end());
+                  }
+                }
+              }
+            }
+      }
+  }
+
+   // Remove neumann dof on interface from interface_dofs
+  template <int dim, int spacedim = dim>
+  void 
+  remove_interface_neumann_dofs (DoFHandler<dim, spacedim>                 &dof_handler,
+                         std::vector<std::vector<unsigned int>>    &interface_dofs,
+                         std::vector<types::global_dof_index>      &local_face_dof_indices,
+                         unsigned long                             &n_velocity_interface)
+  {
+    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
+    unsigned int side = 0;
+    for (const auto &cell: dof_handler.active_cell_iterators())
+      {
+        for (unsigned int face_n = 0;
+             face_n < n_faces_per_cell;
+             ++face_n)
+          if (cell->at_boundary(face_n) &&
+              (cell->face(face_n)->boundary_id() == 7))
+            { 
+              cell->face(face_n)->get_dof_indices(local_face_dof_indices, 0);
+              // pcout << "side = " << side << std::endl;
+              side = face_n;
+              // pcout << "side = " << side << std::endl;
+              for (auto el : local_face_dof_indices){
+                if (el < n_velocity_interface){
+                  // pcout << "interface_dofs[side] = " << interface_dofs[side].size() << std::endl;
+                  for (int i = 0; i<4; ++i){
+                    interface_dofs[i].erase(std::remove(interface_dofs[i].begin(), 
+                                        interface_dofs[i].end(), el), interface_dofs[i].end());
+                  }
+                }
+              }
+            }
+      }
+  }
+  
+  // Extracting the neumann dofs on the interface corner point shared between subdomains  
+  template <int dim>
+  void 
+  find_interface_dofs_neumann_corner (std::vector<std::vector<unsigned int>>    &interface_dofs_find_neumann,
+                            std::vector<unsigned int>                 &repeated_dofs_neumann_corner)
+  { 
+    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
+    repeated_dofs_neumann_corner.clear();
+    std::vector<unsigned int> tmp;
+    tmp.clear();
+    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+      if (interface_dofs_find_neumann[side].size() != 0)
+        for (unsigned int i = 0; i < interface_dofs_find_neumann[side].size(); ++i)
+        {
+          if (std::find (tmp.begin(), tmp.end(), interface_dofs_find_neumann[side][i]) != tmp.end())
+            repeated_dofs_neumann_corner.push_back(interface_dofs_find_neumann[side][i]);
+          
+          tmp.push_back(interface_dofs_find_neumann[side][i]);
+        }
+  }
+
 } // namespace dd_stokes
 
 #endif // STOKES_MFEDD_INTERFACE_H

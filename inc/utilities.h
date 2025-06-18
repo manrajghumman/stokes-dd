@@ -1,9 +1,11 @@
 /* ---------------------------------------------------------------------
  * Utilities:
  *  - DD & mortar related - mesh subdivision, mortar projection
+ *  - Printing the convergence tables
  * ---------------------------------------------------------------------
  *
  * Author: Eldar Khattatov, University of Pittsburgh, 2016 - 2017
+ *         Manraj Singh Ghumman, University of Pittsburgh, 2023-2025
  */
 #ifndef STOKES_MFEDD_UTILITIES_H
 #define STOKES_MFEDD_UTILITIES_H
@@ -11,12 +13,8 @@
 #include "projector.h"
 #include <map>
 #include <deal.II/lac/block_vector.h>
-
-#include <deal.II/lac/sparse_direct.h>
-
-#include <deal.II/lac/sparse_ilu.h>
-
-#include <filesystem>
+#include <deal.II/numerics/fe_field_function.h>
+#include <deal.II/base/convergence_table.h>
 
 namespace dd_stokes
 {
@@ -384,452 +382,6 @@ namespace dd_stokes
   }
 
   template <int dim>
-  void 
-  constant_residual_two (std::vector<std::vector<unsigned int>> &interface_dofs,
-                        std::vector<int>                       &neighbors,
-                        std::vector<unsigned int>              &repeated_dofs,
-                        std::vector<unsigned int>              &repeated_dofs_neumann,
-                        std::vector<std::vector<double>>       &r)
-  {
-    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
-    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-      if (neighbors[side] >= 0)
-        for (unsigned int i = 0; i < interface_dofs[side].size(); ++i){
-          if (std::find(repeated_dofs.begin(), repeated_dofs.end(), 
-                            interface_dofs[side][i]) != repeated_dofs.end())
-          { 
-            if (i == 0 || i == 1){
-              r[side][i] = r[side][i+4]; 
-            }
-            else{
-              r[side][i] = r[side][i+2]; 
-            }
-          }
-
-          if (std::find(repeated_dofs_neumann.begin(), repeated_dofs_neumann.end(), 
-                            interface_dofs[side][i]) != repeated_dofs_neumann.end())
-          { 
-            if (i == 0 || i == 1){
-              r[side][i] = r[side][i+4]; 
-            }
-            else{
-              r[side][i] = r[side][i+2]; 
-            }
-          }
-        }
-  }
-
-   template <int dim>
-  void 
-  constant_Ap_two (std::vector<std::vector<unsigned int>>    &interface_dofs,
-                  std::vector<int>                          &neighbors,
-                  std::vector<unsigned int>                 &repeated_dofs,
-                  std::vector<unsigned int>                 &repeated_dofs_neumann,
-                  std::vector<std::vector<double>>          &interface_data_send)
-  {
-    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
-    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-      if (neighbors[side] >= 0)
-      {
-        for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-        {
-          if (std::find(repeated_dofs.begin(), repeated_dofs.end(), 
-              interface_dofs[side][i]) != repeated_dofs.end())
-          { 
-            if (i == 0 || i == 1)
-            { 
-              interface_data_send[side][i] = interface_data_send[side][i+4];
-            }
-            else
-            {
-              interface_data_send[side][i] = interface_data_send[side][i+2];
-            }
-          }
-
-          if (std::find(repeated_dofs_neumann.begin(), repeated_dofs_neumann.end(), 
-              interface_dofs[side][i]) != repeated_dofs_neumann.end())
-          { 
-            if (i == 0 || i == 1)
-            { 
-              interface_data_send[side][i] = interface_data_send[side][i+4]; 
-            }
-            else 
-            {
-              interface_data_send[side][i] = interface_data_send[side][i+2]; 
-            }
-          }
-        }
-      }
-  }
-
-  template <int dim>
-  void 
-  average_residual_two (std::vector<std::vector<unsigned int>> &interface_dofs,
-                        std::vector<int>                       &neighbors,
-                        std::vector<unsigned int>              &repeated_dofs,
-                        std::vector<unsigned int>              &repeated_dofs_neumann,
-                        std::vector<std::vector<double>>       &r)
-  {
-    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
-    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-      if (neighbors[side] >= 0)
-        for (unsigned int i = 0; i < interface_dofs[side].size(); ++i){
-          if (std::find(repeated_dofs.begin(), repeated_dofs.end(), 
-                            interface_dofs[side][i]) != repeated_dofs.end())
-          { 
-            if (i == 0 || i == 1){
-              r[side][i] = (r[side][i+4]+r[side][i])/2; 
-              r[side][i+4] = r[side][i];
-            }
-            else{
-              r[side][i] = (r[side][i+2]+r[side][i])/2; 
-              r[side][i+2] = r[side][i];
-            }
-          }
-
-          if (std::find(repeated_dofs_neumann.begin(), repeated_dofs_neumann.end(), 
-                            interface_dofs[side][i]) != repeated_dofs_neumann.end())
-          { 
-            if (i == 0 || i == 1){
-              r[side][i] = (r[side][i+4]+r[side][i])/2; 
-              r[side][i+4] = r[side][i];
-            }
-            else{
-              r[side][i] = (r[side][i+2]+r[side][i])/2; 
-              r[side][i+2] = r[side][i];
-            }
-          }
-        }
-  }
-
-   template <int dim>
-  void 
-  average_Ap_two (std::vector<std::vector<unsigned int>>    &interface_dofs,
-                  std::vector<int>                          &neighbors,
-                  std::vector<unsigned int>                 &repeated_dofs,
-                  std::vector<unsigned int>                 &repeated_dofs_neumann,
-                  std::vector<std::vector<double>>          &interface_data_send)
-  {
-    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
-    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-      if (neighbors[side] >= 0)
-      {
-        for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-        {
-          if (std::find(repeated_dofs.begin(), repeated_dofs.end(), 
-              interface_dofs[side][i]) != repeated_dofs.end())
-          { 
-            if (i == 0 || i == 1)
-            { 
-              interface_data_send[side][i] = (interface_data_send[side][i+4]+interface_data_send[side][i])/2;
-              interface_data_send[side][i+4] = interface_data_send[side][i];
-            }
-            else
-            {
-              interface_data_send[side][i] = (interface_data_send[side][i+2]+interface_data_send[side][i])/2;
-              interface_data_send[side][i+2] = interface_data_send[side][i];
-            }
-          }
-
-          if (std::find(repeated_dofs_neumann.begin(), repeated_dofs_neumann.end(), 
-              interface_dofs[side][i]) != repeated_dofs_neumann.end())
-          { 
-            if (i == 0 || i == 1)
-            { 
-              interface_data_send[side][i] = (interface_data_send[side][i+4]+interface_data_send[side][i])/2; 
-              interface_data_send[side][i+4] = interface_data_send[side][i];
-            }
-            else 
-            {
-              interface_data_send[side][i] = (interface_data_send[side][i+2]+interface_data_send[side][i])/2; 
-              interface_data_send[side][i+2] = interface_data_send[side][i];
-            }
-          }
-        }
-      }
-  }
-
-  template <int dim>
-  void 
-  average_residual_three (std::vector<std::vector<unsigned int>> &interface_dofs,
-                          std::vector<int>                       &neighbors,
-                          std::vector<unsigned int>              &repeated_dofs,
-                          std::vector<unsigned int>              &repeated_dofs_neumann,
-                          std::vector<std::vector<double>>       &r)
-  {
-    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
-    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-      if (neighbors[side] >= 0)
-        for (unsigned int i = 0; i < interface_dofs[side].size(); ++i){
-          if (std::find(repeated_dofs.begin(), repeated_dofs.end(), 
-                            interface_dofs[side][i]) != repeated_dofs.end())
-          { 
-            if (i == 0 || i == 1){
-              r[side][i] = (r[side][i+4]+r[side][i+2]+r[side][i])/3; 
-              r[side][i+2] = r[side][i];
-              r[side][i+4] = r[side][i];
-            }
-            else{
-              r[side][i] = (r[side][i+2]+r[side][i]+r[side][i-4])/3; 
-              r[side][i+2] = r[side][i];
-              r[side][i-4] = r[side][i];
-            }
-          }
-
-          if (std::find(repeated_dofs_neumann.begin(), repeated_dofs_neumann.end(), 
-                            interface_dofs[side][i]) != repeated_dofs_neumann.end())
-          { 
-            if (i == 0 || i == 1){
-              r[side][i] = (r[side][i+4]+r[side][i+2]+r[side][i])/3; 
-              r[side][i+2] = r[side][i];
-              r[side][i+4] = r[side][i];
-            }
-            else{
-              r[side][i] = (r[side][i+2]+r[side][i]+r[side][i-4])/3; 
-              r[side][i+2] = r[side][i];
-              r[side][i-4] = r[side][i];
-            }
-          }
-        }
-  }
-
-   template <int dim>
-  void 
-  average_Ap_three (std::vector<std::vector<unsigned int>>    &interface_dofs,
-                    std::vector<int>                          &neighbors,
-                    std::vector<unsigned int>                 &repeated_dofs,
-                    std::vector<unsigned int>                 &repeated_dofs_neumann,
-                    std::vector<std::vector<double>>          &interface_data_send)
-  {
-    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
-    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-      if (neighbors[side] >= 0)
-      {
-        for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-        {
-          if (std::find(repeated_dofs.begin(), repeated_dofs.end(), 
-              interface_dofs[side][i]) != repeated_dofs.end())
-          { 
-            if (i == 0 || i == 1)
-            { 
-              interface_data_send[side][i] = (interface_data_send[side][i+4]
-                          +interface_data_send[side][i]+interface_data_send[side][i+2])/3;
-              interface_data_send[side][i+4] = interface_data_send[side][i];
-              interface_data_send[side][i+2] = interface_data_send[side][i];
-            }
-            else
-            {
-              interface_data_send[side][i] = (interface_data_send[side][i+2]
-                          +interface_data_send[side][i]+interface_data_send[side][i-4])/3;
-              interface_data_send[side][i+2] = interface_data_send[side][i];
-              interface_data_send[side][i-4] = interface_data_send[side][i];
-            }
-          }
-
-          if (std::find(repeated_dofs_neumann.begin(), repeated_dofs_neumann.end(), 
-              interface_dofs[side][i]) != repeated_dofs_neumann.end())
-          { 
-            if (i == 0 || i == 1)
-            { 
-              interface_data_send[side][i] = (interface_data_send[side][i+4]
-                            +interface_data_send[side][i]+interface_data_send[side][i+2])/3; 
-              interface_data_send[side][i+4] = interface_data_send[side][i];
-              interface_data_send[side][i+2] = interface_data_send[side][i];
-            }
-            else 
-            {
-              interface_data_send[side][i] = (interface_data_send[side][i+2]
-                              +interface_data_send[side][i]+interface_data_send[side][i-4])/3; 
-              interface_data_send[side][i+2] = interface_data_send[side][i];
-              interface_data_send[side][i-4] = interface_data_send[side][i];
-            }
-          }
-        }
-      }
-  }
-
-  // Extracting the dirichlet dofs on the outside bdry shared between subdomains 
-  template <int dim, int spacedim = dim>
-  void 
-  find_interface_dofs_dirichlet (DoFHandler<dim, spacedim>                           &dof_handler,
-                           std::vector<std::vector<unsigned int>>    &interface_dofs,
-                           std::vector<types::global_dof_index>      &local_face_dof_indices,
-                           unsigned long                             &n_velocity_interface,
-                           std::vector<int>                          &neighbors,
-                           std::vector<unsigned int>                 &repeated_dofs)
-  { 
-    repeated_dofs.clear();
-    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
-    for (const auto &cell: dof_handler.active_cell_iterators())
-    {
-      for (unsigned int face_n = 0;
-             face_n < GeometryInfo<dim>::faces_per_cell;
-             ++face_n)
-          if (cell->at_boundary(face_n) &&
-              (cell->face(face_n)->boundary_id() == 0))
-            { 
-              cell->face(face_n)->get_dof_indices(local_face_dof_indices, 0);
-              for (auto el: local_face_dof_indices)
-                if (el < n_velocity_interface)
-                  for (int side = 0; side < n_faces_per_cell;++side)
-                    if (neighbors[side]>=0)
-                      if (std::find (interface_dofs[side].begin(), interface_dofs[side].end(), el) 
-                                      != interface_dofs[side].end())//enters this statement if local_dof_indices[i] belongs to interface_dofs[side]
-                        if (std::find (repeated_dofs.begin(), repeated_dofs.end(), el) 
-                                                                  == repeated_dofs.end())
-                          {
-                            repeated_dofs.push_back(el);
-                            // if (this_mpi == 0)
-                            // { 
-                            //   std::cout << "repeated_dofs = " << el << std::endl;
-                            // }
-                          }
-              }       
-    }
-    // std::cout << "repeated_dofs.size() = " << repeated_dofs.size() << std::endl; 
-   
-    //   for (int m = 0; m < repeated_dofs.size(); ++m)
-    //     std::cout << "repeated_dofs = " << repeated_dofs[m] << std::endl;  
-  }
-
-  // Extracting the neumann dofs on the outside bdry shared between subdomains 
-  template <int dim, int spacedim =  dim>
-  void 
-  find_interface_dofs_neumann (DoFHandler<dim, spacedim>                     &dof_handler,
-                         std::vector<std::vector<unsigned int>>    &interface_dofs,
-                         std::vector<types::global_dof_index>      &local_face_dof_indices,
-                         unsigned long                             &n_velocity_interface,
-                         std::vector<int>                          &neighbors,
-                         std::vector<unsigned int>                 &repeated_dofs_neumann)
-  {
-    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
-    for (const auto &cell: dof_handler.active_cell_iterators())
-    {
-        repeated_dofs_neumann.clear();  
-        for (unsigned int face_n = 0;
-             face_n < GeometryInfo<dim>::faces_per_cell;
-             ++face_n)
-          if (cell->at_boundary(face_n) &&
-              (cell->face(face_n)->boundary_id() == 7))
-            { 
-              cell->face(face_n)->get_dof_indices(local_face_dof_indices, 0);
-              for (auto el: local_face_dof_indices)
-                if (el < n_velocity_interface)
-                  for (int side = 0; side<n_faces_per_cell;++side)
-                    if (neighbors[side]>=0)
-                      if (std::find (interface_dofs[side].begin(), interface_dofs[side].end(), el) 
-                                      != interface_dofs[side].end())//enters this statement if local_dof_indices[i] belongs to interface_dofs[side]
-                        if (std::find (repeated_dofs_neumann.begin(), repeated_dofs_neumann.end(), el) 
-                                                                  == repeated_dofs_neumann.end())
-                          {
-                            repeated_dofs_neumann.push_back(el);
-                            // if (this_mpi == 0)
-                            // { 
-                            //   std::cout << "repeated_dofs_neumann = " << el << std::endl;
-                            // }
-                          }
-              }
-    }
-    // std::cout << "repeated_dofs_neumann.size() = " << repeated_dofs_neumann.size() << std::endl; 
-   
-    //   for (int m = 0; m < repeated_dofs_neumann.size(); ++m)
-    //     std::cout << "repeated_dofs_neumann = " << repeated_dofs_neumann[m] << std::endl; 
-  }
-
-  // Remove dirichlet dof on interface from interface_dofs
-  template <int dim, int spacedim = dim>
-  void 
-  remove_interface_dirichlet_dofs (DoFHandler<dim, spacedim>                 &dof_handler,
-                         std::vector<std::vector<unsigned int>>    &interface_dofs,
-                         std::vector<types::global_dof_index>      &local_face_dof_indices,
-                         unsigned long                             &n_velocity_interface)
-  {
-    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
-    unsigned int side = 0;
-    for (const auto &cell: dof_handler.active_cell_iterators())
-      {
-        for (unsigned int face_n = 0;
-             face_n < n_faces_per_cell;
-             ++face_n)
-          if (cell->at_boundary(face_n) &&
-              (cell->face(face_n)->boundary_id() == 0))
-            { 
-              cell->face(face_n)->get_dof_indices(local_face_dof_indices, 0);
-              // pcout << "side = " << side << std::endl;
-              side = face_n;
-              // pcout << "side = " << side << std::endl;
-              for (auto el : local_face_dof_indices){
-                if (el < n_velocity_interface){
-                  // pcout << "interface_dofs[side] = " << interface_dofs[side].size() << std::endl;
-                  for (int i = 0; i<4; ++i){
-                    interface_dofs[i].erase(std::remove(interface_dofs[i].begin(), 
-                                        interface_dofs[i].end(), el), interface_dofs[i].end());
-                  }
-                }
-              }
-            }
-      }
-  }
-
-   // Remove neumann dof on interface from interface_dofs
-  template <int dim, int spacedim = dim>
-  void 
-  remove_interface_neumann_dofs (DoFHandler<dim, spacedim>                 &dof_handler,
-                         std::vector<std::vector<unsigned int>>    &interface_dofs,
-                         std::vector<types::global_dof_index>      &local_face_dof_indices,
-                         unsigned long                             &n_velocity_interface)
-  {
-    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
-    unsigned int side = 0;
-    for (const auto &cell: dof_handler.active_cell_iterators())
-      {
-        for (unsigned int face_n = 0;
-             face_n < n_faces_per_cell;
-             ++face_n)
-          if (cell->at_boundary(face_n) &&
-              (cell->face(face_n)->boundary_id() == 7))
-            { 
-              cell->face(face_n)->get_dof_indices(local_face_dof_indices, 0);
-              // pcout << "side = " << side << std::endl;
-              side = face_n;
-              // pcout << "side = " << side << std::endl;
-              for (auto el : local_face_dof_indices){
-                if (el < n_velocity_interface){
-                  // pcout << "interface_dofs[side] = " << interface_dofs[side].size() << std::endl;
-                  for (int i = 0; i<4; ++i){
-                    interface_dofs[i].erase(std::remove(interface_dofs[i].begin(), 
-                                        interface_dofs[i].end(), el), interface_dofs[i].end());
-                  }
-                }
-              }
-            }
-      }
-  }
-  
-  // Extracting the neumann dofs on the interface corner point shared between subdomains  
-  template <int dim>
-  void 
-  find_interface_dofs_neumann_corner (std::vector<std::vector<unsigned int>>    &interface_dofs_find_neumann,
-                            std::vector<unsigned int>                 &repeated_dofs_neumann_corner)
-  { 
-    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
-    repeated_dofs_neumann_corner.clear();
-    std::vector<unsigned int> tmp;
-    tmp.clear();
-    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-      if (interface_dofs_find_neumann[side].size() != 0)
-        for (unsigned int i = 0; i < interface_dofs_find_neumann[side].size(); ++i)
-        {
-          if (std::find (tmp.begin(), tmp.end(), interface_dofs_find_neumann[side][i]) != tmp.end())
-            repeated_dofs_neumann_corner.push_back(interface_dofs_find_neumann[side][i]);
-          
-          tmp.push_back(interface_dofs_find_neumann[side][i]);
-        }
-  }
-
-
-
-  template <int dim>
   void
   project_mortar(Projector::Projector<dim> &proj,
                  const DoFHandler<dim> &    dof1,
@@ -841,11 +393,6 @@ namespace dd_stokes
                  BlockVector<double> &      out_vec)
   {
     out_vec = 0;
-    // Functions::FEFieldFunction<dim, DoFHandler<dim>, BlockVector<double>>
-    //                                           fe_interface_data(dof1, in_vec);
-    // std::map<types::global_dof_index, double> boundary_values_velocity;
-
-    // typename FunctionMap<dim>::type boundary_functions_velocity;
 
     Functions::FEFieldFunction<dim, BlockVector<double>>
                                               fe_interface_data(dof1, in_vec);
@@ -860,8 +407,6 @@ namespace dd_stokes
       if (neighbors[side] >= 0)
         boundary_functions_velocity[side + 1] = &fe_interface_data;
     
-    // std::cout << boundary_functions_velocity.size() << std::endl;
-    
     proj.project_boundary_values(dof2,
                                  boundary_functions_velocity,
                                  quad,
@@ -871,6 +416,317 @@ namespace dd_stokes
     constraints.distribute(out_vec);
   }
 
+  template <int dim>
+  void
+  print_individual_table_l2(ConvergenceTable &convergence_table,
+                            const unsigned int &iter_meth_flag,
+                            const unsigned int &this_mpi,
+                            const unsigned int &n_processes,
+                            MPI_Comm &mpi_communicator)
+  {
+    convergence_table.set_precision("residual", 3);
+    convergence_table.set_precision("h", 1);
+    convergence_table.set_precision("u_L2", 3);
+    convergence_table.set_precision("p_L2", 3);
+    convergence_table.set_precision("u_order", 2);
+    convergence_table.set_precision("p_order", 2);
+    // convergence_table.set_precision("u_H1", 3);
+    // convergence_table.set_precision("p_H1", 3);
+    // convergence_table.set_precision("ux_H1", 3);
+    // convergence_table.set_precision("uy_H1", 3);
+
+    convergence_table.set_scientific("residual", true);
+    convergence_table.set_scientific("h", true);
+    convergence_table.set_scientific("u_L2", true);
+    convergence_table.set_scientific("p_L2", true);
+    // convergence_table.set_scientific("u_order", true);
+    // convergence_table.set_scientific("p_order", true);
+    // convergence_table.set_scientific("u_H1", true);
+    // convergence_table.set_scientific("p_H1", true);
+    // convergence_table.set_scientific("ux_H1", true);
+    // convergence_table.set_scientific("uy_H1", true);
+
+    convergence_table.set_tex_caption("cells", "\\ cells");
+    convergence_table.set_tex_caption("h", "\\ h");
+    // convergence_table.set_tex_caption("dofs", "\\# dofs");
+    convergence_table.set_tex_caption("interface_dofs", "\\ dofs");
+    if (iter_meth_flag == 1)
+      convergence_table.set_tex_caption("gmres_iter", "gmres iter");
+    else
+      convergence_table.set_tex_caption("cg_iter", "cg iter");
+    convergence_table.set_tex_caption("u_order", "u order");
+    convergence_table.set_tex_caption("p_order", "p order");
+    convergence_table.set_tex_caption("residual", "residual");
+    convergence_table.set_tex_caption("u_L2", "$L^2$-error (u)");
+    convergence_table.set_tex_caption("p_L2", "$L^2$-error (p)");
+    // convergence_table.set_tex_caption("u_H1", "$H^1$-error (u)");
+    // convergence_table.set_tex_caption("p_H1", "$H^1$-error (p)");
+    // convergence_table.set_tex_caption("ux_H1", "$H^1$-error (ux)");
+    // convergence_table.set_tex_caption("uy_H1", "$H^1$-error (uy)");
+
+    convergence_table.set_tex_format("h", "r");
+    convergence_table.set_tex_format("interface_dofs", "r");
+    // convergence_table.set_tex_format("dofs_m", "r");
+
+    // convergence_table.add_column_to_supercolumn("cycle", "n   h");
+    // convergence_table.add_column_to_supercolumn("h", "n   h");
+    
+    // convergence_table.evaluate_convergence_rates(
+    //       "u_L2", ConvergenceTable::reduction_rate);
+    // convergence_table.evaluate_convergence_rates(
+    //       "u_L2", "h", ConvergenceTable::reduction_rate_log2);
+    // convergence_table.evaluate_convergence_rates(
+    //       "p_L2", ConvergenceTable::reduction_rate);
+    // convergence_table.evaluate_convergence_rates(
+    //       "p_L2", "h", ConvergenceTable::reduction_rate_log2);
+    // convergence_table.evaluate_convergence_rates(
+    //       "u_H1", ConvergenceTable::reduction_rate);
+    // convergence_table.evaluate_convergence_rates(
+    //       "u_H1", ConvergenceTable::reduction_rate_log2);
+    // convergence_table.evaluate_convergence_rates(
+    //       "p_H1", ConvergenceTable::reduction_rate);
+    // convergence_table.evaluate_convergence_rates(
+    //       "p_H1", ConvergenceTable::reduction_rate_log2);
+    // convergence_table.evaluate_convergence_rates(
+    //       "ux_H1", ConvergenceTable::reduction_rate);
+    // convergence_table.evaluate_convergence_rates(
+    //       "ux_H1", ConvergenceTable::reduction_rate_log2);
+    // convergence_table.evaluate_convergence_rates(
+    //       "uy_H1", ConvergenceTable::reduction_rate);
+    // convergence_table.evaluate_convergence_rates(
+    //       "uy_H1", ConvergenceTable::reduction_rate_log2);
+
+    // convergence_table.set_precision("u_L2-rate", 3);
+    // convergence_table.set_precision("p_L2-rate", 3);
+    // convergence_table.set_precision("u_H1-rate", 3);
+    // convergence_table.set_precision("p_H1-rate", 3);
+    // convergence_table.set_precision("ux_H1-rate", 3);
+    // convergence_table.set_precision("uy_H1-rate", 3);
+
+    // std::cout << std::endl;
+    // convergence_table.write_text(std::cout);
+
+    // std::string conv_filename = "convergence_mpi" + Utilities::int_to_string(this_mpi) + ".tex";
+
+    // std::ofstream table_file(conv_filename);
+    // convergence_table.write_tex(table_file);
+  
+    std::string conv_filename = "../output/convg_tables/table_individual_l2" + std::string(".tex");
+
+    if (this_mpi == 0) // latex header
+    {
+        std::ofstream table_file(conv_filename, std::ios::out);
+        table_file << "\\documentclass[10pt]{report}\n"
+                   << "\\usepackage{float}\n"
+                   << "\\usepackage[margin=0.7in]{geometry}\n\n"
+                   << "\\begin{document}\n\n";
+        table_file.close();
+    }
+    for (unsigned int i = 0; i<n_processes; ++i)
+    {
+      MPI_Barrier(mpi_communicator);
+      if (this_mpi == i)
+      { 
+        // Print to screen if you like, but messy for many processes
+        // convergence_table.write_text(std::cout);
+
+        std::ofstream table_file(conv_filename, std::ios::app);
+        // Write a LaTeX comment and a section header before the table:
+        table_file << "\n% ===== MPI Process " << this_mpi << " =====\n";
+        table_file << "\\section*{MPI Process " << this_mpi << "}\n";
+        convergence_table.write_tex(table_file, false);
+        table_file << "\n"; // Optional: extra space after each table
+      }
+    }
+    MPI_Barrier(mpi_communicator);
+    if (this_mpi == 0)
+    {
+        std::ofstream table_file(conv_filename, std::ios::app);
+        table_file << "\n\\end{document}\n";
+    }
+  }
+
+  template <int dim>
+  void
+  print_individual_table_h1(ConvergenceTable &convergence_table,
+                            const unsigned int &iter_meth_flag,
+                            const unsigned int &this_mpi,
+                            const unsigned int &n_processes,
+                            MPI_Comm &mpi_communicator)
+  {
+    convergence_table.set_precision("h", 1);
+    convergence_table.set_precision("u_H1", 3);
+    convergence_table.set_precision("p_H1", 3);
+    convergence_table.set_precision("ux_H1", 3);
+    convergence_table.set_precision("uy_H1", 3);
+
+    convergence_table.set_scientific("h", true);
+    convergence_table.set_scientific("u_H1", true);
+    convergence_table.set_scientific("p_H1", true);
+    convergence_table.set_scientific("ux_H1", true);
+    convergence_table.set_scientific("uy_H1", true);
+
+    convergence_table.set_tex_caption("cells", "\\ cells");
+    convergence_table.set_tex_caption("h", "\\ h");
+    convergence_table.set_tex_caption("interface_dofs", "\\ dofs");
+    if (iter_meth_flag == 1)
+      convergence_table.set_tex_caption("gmres_iter", "gmres iter");
+    else
+      convergence_table.set_tex_caption("cg_iter", "cg iter");
+    convergence_table.set_tex_caption("u_H1", "$H^1$-error (u)");
+    convergence_table.set_tex_caption("p_H1", "$H^1$-error (p)");
+    convergence_table.set_tex_caption("ux_H1", "$H^1$-error (ux)");
+    convergence_table.set_tex_caption("uy_H1", "$H^1$-error (uy)");
+
+    convergence_table.set_tex_format("h", "r");
+    convergence_table.set_tex_format("interface_dofs", "r");
+    // convergence_table.set_tex_format("dofs_m", "r");
+
+    // convergence_table.add_column_to_supercolumn("cycle", "n   h");
+    // convergence_table.add_column_to_supercolumn("h", "n   h");
+    
+    // convergence_table.evaluate_convergence_rates(
+    //       "u_H1", ConvergenceTable::reduction_rate);
+    // convergence_table.evaluate_convergence_rates(
+    //       "u_H1", ConvergenceTable::reduction_rate_log2);
+    // convergence_table.evaluate_convergence_rates(
+    //       "p_H1", ConvergenceTable::reduction_rate);
+    // convergence_table.evaluate_convergence_rates(
+    //       "p_H1", ConvergenceTable::reduction_rate_log2);
+    // convergence_table.evaluate_convergence_rates(
+    //       "ux_H1", ConvergenceTable::reduction_rate);
+    // convergence_table.evaluate_convergence_rates(
+    //       "ux_H1", ConvergenceTable::reduction_rate_log2);
+    // convergence_table.evaluate_convergence_rates(
+    //       "uy_H1", ConvergenceTable::reduction_rate);
+    // convergence_table.evaluate_convergence_rates(
+    //       "uy_H1", ConvergenceTable::reduction_rate_log2);
+
+    // convergence_table.set_precision("u_L2-rate", 3);
+    // convergence_table.set_precision("p_L2-rate", 3);
+    // convergence_table.set_precision("u_H1-rate", 3);
+    // convergence_table.set_precision("p_H1-rate", 3);
+    // convergence_table.set_precision("ux_H1-rate", 3);
+    // convergence_table.set_precision("uy_H1-rate", 3);
+
+    // std::cout << std::endl;
+    // convergence_table.write_text(std::cout);
+
+    // std::string conv_filename = "convergence_mpi" + Utilities::int_to_string(this_mpi) + ".tex";
+
+    // std::ofstream table_file(conv_filename);
+    // convergence_table.write_tex(table_file);
+  
+    std::string conv_filename = "../output/convg_tables/table_individual_h1" + std::string(".tex");
+
+    if (this_mpi == 0) // latex header
+    {
+        std::ofstream table_file(conv_filename, std::ios::out);
+        table_file << "\\documentclass[10pt]{report}\n"
+                   << "\\usepackage{float}\n"
+                   << "\\usepackage[margin=0.7in]{geometry}\n\n"
+                   << "\\begin{document}\n\n";
+        table_file.close();
+    }
+    for (unsigned int i = 0; i<n_processes; ++i)
+    {
+      MPI_Barrier(mpi_communicator);
+      if (this_mpi == i)
+      { 
+        // Print to screen if you like, but messy for many processes
+        // convergence_table.write_text(std::cout);
+
+        std::ofstream table_file(conv_filename, std::ios::app);
+        // Write a LaTeX comment and a section header before the table:
+        table_file << "\n% ===== MPI Process " << this_mpi << " =====\n";
+        table_file << "\\section*{MPI Process " << this_mpi << "}\n";
+        convergence_table.write_tex(table_file, false);
+        table_file << "\n"; // Optional: extra space after each table
+      }
+    }
+    MPI_Barrier(mpi_communicator);
+    if (this_mpi == 0)
+    {
+        std::ofstream table_file(conv_filename, std::ios::app);
+        table_file << "\n\\end{document}\n";
+    }
+  }
+  
+  template <int dim>
+  void
+  print_total_table_l2(ConvergenceTable &convergence_table_total,
+                       const unsigned int &iter_meth_flag,
+                       const unsigned int &print_interface_matrix_flag,
+                       const unsigned int &this_mpi)
+  {
+    // only one process prints this data
+    if (this_mpi == 0)
+    {
+      convergence_table_total.set_precision("residual", 3);
+      convergence_table_total.set_precision("h", 1);
+      convergence_table_total.set_precision("u_L2", 3);
+      convergence_table_total.set_precision("p_L2", 3);
+      convergence_table_total.set_precision("u_order", 2);
+      convergence_table_total.set_precision("p_order", 2);
+      if (print_interface_matrix_flag)
+      {
+        convergence_table_total.set_precision("cond(S)", 3);
+        convergence_table_total.set_precision("||S-S'||", 3);
+      }
+
+      convergence_table_total.set_scientific("residual", true);
+      convergence_table_total.set_scientific("h", true);
+      convergence_table_total.set_scientific("u_L2", true);
+      convergence_table_total.set_scientific("p_L2", true);
+      if (print_interface_matrix_flag)
+      {
+        convergence_table_total.set_scientific("cond(S)", true);
+        convergence_table_total.set_scientific("||S-S'||", true);
+      }
+
+      // convergence_table_total.set_tex_caption("cells", "\\# cells");
+      convergence_table_total.set_tex_caption("h", "\\ h");
+      // convergence_table_total.set_tex_caption("dofs", "\\# dofs");
+      convergence_table_total.set_tex_caption("interface_dofs", "\\ dofs");
+      if (iter_meth_flag == 1)
+        convergence_table_total.set_tex_caption("gmres_iter", "gmres iter");
+      else
+        convergence_table_total.set_tex_caption("cg_iter", "cg iter");
+      convergence_table_total.set_tex_caption("u_order", "u order");
+      convergence_table_total.set_tex_caption("p_order", "p order");
+      convergence_table_total.set_tex_caption("residual", "residual");
+      convergence_table_total.set_tex_caption("u_L2", "$L^2$-error (u)");
+      convergence_table_total.set_tex_caption("p_L2", "$L^2$-error (p)");
+      if (print_interface_matrix_flag)
+        convergence_table_total.set_tex_caption("||S-S'||", "$||S-S'||$");
+
+      convergence_table_total.set_tex_format("h", "r");
+      convergence_table_total.set_tex_format("interface_dofs", "r");
+      // convergence_table_total.set_tex_format("dofs_m", "r");
+
+      convergence_table_total.write_text(std::cout);
+
+      std::string conv_filename = std::string("../output/convg_table_total/convergence_total_l2") + ".tex";
+
+      std::cout << "total error\n" << std::endl;
+      std::ofstream table_file(conv_filename, std::ios::out);
+      table_file << "\\documentclass[10pt]{report}\n"
+                 << "\\usepackage{float}\n"
+                 << "\\usepackage[margin=0.7in]{geometry}\n\n"
+                 << "\\begin{document}\n\n";
+      
+      convergence_table_total.write_tex(table_file, false);
+      table_file << "\n\\end{document}\n";
+      table_file.close();
+    }
+  }
+
+  template <int dim>
+  void
+  print_total_table_h1()
+  {
+
+  }
 
 } // namespace dd_stokes
 
