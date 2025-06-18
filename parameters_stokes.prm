@@ -1,0 +1,48 @@
+# Listing of Parameters
+# ---------------------
+#################################################################################
+# Discretization
+
+set dim              = 2
+set degree           = 1
+set refinements      = 6
+set quad_degree      = 11
+set initial_grid_2D  = 1, 1
+set initial_grid_3D  = 1, 1, 1
+
+#################################################################################
+# Boundary condition enforcement 
+# (D for Dirichlet and N for Neumann)
+# {bottom face, right face, top face, left face, out of plane face, inside plane face} 
+# Example: N, D, N, D represents bottom and top Neumann and other 2 sides Dirichlet in 2D
+
+subsection External Boundary Conditions
+	set essential_dirichlet = no
+	set boundary_2D         = N, D, D, D
+	set boundary_3D         = N, D, D, D, D, D
+end
+
+#################################################################################
+# Mortar Enforcement
+
+subsection Mortar
+	set mortar              = no
+	set continuous_mortar   = no
+	set mortar_degree       = 1
+end
+
+#################################################################################
+# Iterative Method for solver ('CG' or 'GMRES')
+
+subsection Solver
+	set iterative_method = GMRES
+	set max_iter         = 5000
+	set tol              = 1e-9
+end
+
+#################################################################################
+# Compute and print the matrix for interface operator (currently only works for m x 1 # grid setup)
+
+subsection Print Interface Matrix
+	set print_interface_matrix = no
+end

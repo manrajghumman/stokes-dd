@@ -16,6 +16,7 @@
 
 // Utilities, data, etc..
 #include "../inc/stokes_mfedd.h"
+#include "../inc/stokes_parameter_reader.h"
 
 // Main function is simple here
 int
@@ -74,81 +75,135 @@ main(int argc, char *argv[])
       //                  const bool mortar_flag           = 0, // 0 means no mortar, 1 means mortar
       //                  const unsigned int mortar_degree = 0
       //                  const unsigned int iter_meth_flag= 0); // 0 means CG, 1 means GMRES
-      std::vector<unsigned int> tmp(6);
-      char tmp1, tmp2, tmp3, tmp4;
-      MPI_Barrier(MPI_COMM_WORLD);
-      if (this_mpi == 0)
+      ParameterHandler prm;
+      StokesParameterReader param(prm);
+      param.read_parameters("../parameters_stokes.prm");
+      const unsigned int dim = prm.get_integer("dim");
+      const unsigned int degree = prm.get_integer("degree");
+      AssertThrow(dim == 2 || dim == 3, ExcMessage("Dimension must be either 2 or 3."));
+      const unsigned int refinements = prm.get_integer("refinements");
+      unsigned int qdegree = prm.get_integer("quad_degree"); // default quadrature degree, can be changed later
+      // const std::vector<unsigned int> initial_grid = prm.get_integer_list("initial_grid");
+      // AssertThrow(initial_grid.size() == dim, ExcMessage("Initial grid size must match the dimension."));
+      prm.enter_subsection("External Boundary Conditions");
+      std::vector<unsigned int> boundary_m2d;
+      const bool ess_dir_flag = prm.get("essential_dirichlet") == "yes" ? 1 : 0;
+      switch (dim)
       {
-        std::cout << "Running Stokes Domain Decomposition with Mortar Finite Elements \n" 
-                  << "This is a 2D example with matching grids.\n"
-                  << "ess_dir (y/n): " << std::endl;
+        case 2:
         {
-          std::cin  >> tmp1;
-          if (tmp1 == 'y')
-            tmp[0] = 1; // essential dirichlet
-          else if (tmp1 == 'n')
-            tmp[0] = 0; // Nitsche
-          else
-            AssertThrow(false, ExcMessage("Invalid input for essential dirichlet flag. Use 'y' or 'n'."));
-        }
-        std::cout << "\nmortar (y/n): " << std::endl;
-        {
-          std::cin  >> tmp2;
-          if (tmp2 == 'y')
-          {
-            tmp[1] = 1; // mortar
-            std::cout << "\ncontinuous mortar (y/n): " <<std::endl;
-            std::cin  >> tmp3;
-            if (tmp3 == 'y')
-              tmp[4] = 1; // continuous mortar
-            else if (tmp3 == 'n')
-              tmp[4] = 0; // no continuous mortar
+          // Get the string and split into a vector of strings
+          std::vector<std::string> bvec 
+                      = Utilities::split_string_list(prm.get("boundary_2D")); 
+          // Convert each string to a char
+          for (const std::string &s : bvec)
+            if (s[0] == 'N')
+              boundary_m2d.push_back(1); // Neumann boundary
+            else if (s[0] == 'D')
+              boundary_m2d.push_back(0); // Dirichlet boundary
             else
-              AssertThrow(false, ExcMessage("Invalid input for continuous mortar flag. Use 'y' or 'n'."));
-            std::cout << "\nmortar degree:" << std::endl;
-            std::cin  >> tmp[2];
-          } 
-          else if (tmp2 == 'n')
-          {
-            tmp[1] = 0; // no mortar
-            tmp[2] = 0; // no mortar degree if no mortar // kinda stupid but need 1 for constructor whatever
-            tmp[4] = 1; // continuous mortar
-          }  
-          else
-            AssertThrow(false, ExcMessage("Invalid input for mortar flag. Use 'y' or 'n'."));
+              AssertThrow(false, ExcMessage("Invalid boundary condition type. Use 'N' for Neumann or 'D' for Dirichlet."));
+          // Ensure the boundary vector has exactly 4 elements
+          AssertThrow(boundary_m2d.size() == 4, ExcMessage("Boundary vector must have exactly 4 elements/edges for 2D."));
+          break;
         }
-        std::cout << "\niterative method (0 for CG, 1 for GMRES): " << std::endl;
-        std::cin  >> tmp[3];
-        std::cout << "\nprint interface matrix (y/n): " << std::endl;
-        std::cin  >> tmp4;
-        if (tmp4 == 'y')
-          tmp[5] = 1; // print interface matrix
-        else if (tmp4 == 'n')
-          tmp[5] = 0; // do not print interface matrix
-        else
-          AssertThrow(false, ExcMessage("Invalid input for printing interface matrix. Use 'y' or 'n'."));
+        case 3:
+        {
+          // Get the string and split into a vector of strings
+          std::vector<std::string> bvec 
+                      = Utilities::split_string_list(prm.get("boundary_3D")); 
+          // Convert each string to a char
+          for (const std::string &s : bvec)
+            if (s[0] == 'N')
+              boundary_m2d.push_back(1); // Neumann boundary
+            else if (s[0] == 'D')
+              boundary_m2d.push_back(0); // Dirichlet boundary
+            else
+              AssertThrow(false, ExcMessage("Invalid boundary condition type. Use 'N' for Neumann or 'D' for Dirichlet."));
+          // Ensure the boundary vector has exactly 4 elements
+          AssertThrow(boundary_m2d.size() == 6, ExcMessage("Boundary vector must have exactly 6 elements/faces for 3D."));
+          break;
+        }
+        default:
+          AssertThrow(false, ExcMessage("Dimension must be either 2 or 3."));
       }
-      // MPI_Barrier(MPI_COMM_WORLD);
-      // Broadcast from root (rank 0) to all
-      MPI_Bcast(&tmp[0], 6, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-      MixedStokesProblemDD<2> stokes(1, tmp[0], tmp[1], tmp[2], tmp[3], tmp[4], tmp[5]);
-      // MixedStokesProblemDD<2> mortars(1, tmp[0], tmp[1], tmp[2], tmp[3], tmp[4]);
-
-      std::vector<unsigned int> boundary_m2d(4);
-      // enter 0 for dirichlet and 1 for neumann boundary
-      //{bottom, right, top, left}
-      boundary_m2d.assign({1, 0, 0, 0}); 
-      
-      std::vector<unsigned int> boundary_m3d(6);
-      boundary_m3d.assign({0, 0, 0, 0, 0, 0});
+      prm.leave_subsection();
+      prm.enter_subsection("Mortar");
+      const bool mortar_flag = prm.get("mortar") == "yes" ? 1 : 0;
+      bool cont_mortar_flag;
+      unsigned int mortar_degree;
+      if (mortar_flag)
+        {
+          cont_mortar_flag = prm.get("continuous_mortar") == "yes" ? 1 : 0;
+          mortar_degree = prm.get_integer("mortar_degree");
+        }
+      else
+      {
+        cont_mortar_flag = 1; // if no mortar, continuous mortar is default
+        mortar_degree = 0; // if no mortar, mortar degree is 0
+      }
+      prm.leave_subsection();
+      prm.enter_subsection("Solver");
+      unsigned int iter_meth_flag;
+      if (prm.get("iterative_method") == "CG")
+        iter_meth_flag = 0; // CG
+      else if (prm.get("iterative_method") == "GMRES")
+        iter_meth_flag = 1; // GMRES
+      else
+        AssertThrow(false, ExcMessage("Invalid iterative method flag. Use 'CG' or 'GMRES'."));
+      const unsigned int max_iter = prm.get_integer("max_iter");
+      const double tol = prm.get_double("tol");
+      prm.leave_subsection();
+      prm.enter_subsection("Print Interface Matrix");
+      const bool print_interface_matrix_flag = prm.get("print_interface_matrix") == "yes" ? 1 : 0;
+      prm.leave_subsection();
 
       std::string name1("M0");
       std::string name2("M1");
       std::string name3("M2");
       std::string name4("M3");
-
-      stokes.run(4, boundary_m2d, mesh_m2d, 1.e-10, name1, 500, 11);
-      // mortars.run(5, boundary_m2d, mesh_m2d, 1.e-8, name1, 500, 11);
+      switch(dim)
+      {
+        case 2:
+        {
+          MixedStokesProblemDD<2> stokes(degree, 
+                                         ess_dir_flag, 
+                                         mortar_flag, 
+                                         mortar_degree, 
+                                         iter_meth_flag, 
+                                         cont_mortar_flag, 
+                                         print_interface_matrix_flag);
+          stokes.run(refinements, 
+                     boundary_m2d, 
+                     mesh_m2d, 
+                     tol, 
+                     name1, 
+                     max_iter, 
+                     qdegree);
+          break;
+        }
+        case 3:
+        {
+          AssertThrow(false, ExcMessage("3D implementation is not yet available."));
+          // MixedStokesProblemDD<3> stokes(degree, 
+          //                              ess_dir_flag, 
+          //                              mortar_flag, 
+          //                              mortar_degree, 
+          //                              iter_meth_flag, 
+          //                              cont_mortar_flag, 
+          //                              print_interface_matrix_flag);
+          //   stokes.run(refinements, 
+          //              boundary_m2d, 
+          //              mesh_m2d, 
+          //              tol, 
+          //              name1, 
+          //              max_iter, 
+          //              qdegree);
+            break;
+        }
+        default:
+          AssertThrow(false, ExcMessage("Dimension must be either 2 or 3."));
+      }
     }
 
   catch (std::exception &exc)

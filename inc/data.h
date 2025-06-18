@@ -3,7 +3,7 @@
  * the true solution.
  * ---------------------------------------------------------------------
  *
- * Author: Eldar Khattatov, University of Pittsburgh, 2016 - 2017
+ * Author: Manraj Singh Ghumman, University of Pittsburgh, 2023 - 2024
  */
 
 #ifndef STOKES_MFEDD_DATA_H

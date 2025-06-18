@@ -151,15 +151,21 @@ namespace dd_stokes
     //this is a function in utilities.h
 
     std::vector<unsigned int> boundary_cond(2*dim);
+    pcout << "boundary condition:";
     for (unsigned int i = 0; i < boundary_def.size(); ++i)
     {
       if (boundary_def[i] == 0)
         boundary_cond[i] = 0;
       else 
         boundary_cond[i] = 7;
-      
-      pcout << "side = " << i << ", boundary cond = " << boundary_cond[i] << std::endl;
+      if (boundary_cond[i] == 7)
+        pcout << " N";
+      else if (boundary_cond[i] == 0)
+        pcout << " D";
+      else
+        AssertThrow(false, ExcMessage("Invalid boundary condition type. Use 0 for Dirichlet or 7 for Neumann."));
     }
+    pcout << "" << std::endl;
      for (const auto &cell : triangulation.active_cell_iterators()){
           for (const auto &face : cell->face_iterators()){
             if (face->center()[dim - 1] == 0)
@@ -712,6 +718,7 @@ namespace dd_stokes
                                      mpi_communicator, 
                                      this_mpi, 
                                      interface_dofs_size);
+    pcout << "N interface dofs: " << interface_dofs_size << std::endl;
 
     // if (this_mpi == 1)
     //   for (int side = 0; side < n_faces_per_cell; ++side)
@@ -3231,14 +3238,13 @@ namespace dd_stokes
               << "\n";
             make_grid_and_dofs(boundary_def);
 
-
+            pcout << "Getting interface dofs" << std::endl;
             get_interface_dofs();
-            pcout << "got interface dofs" << std::endl;
             pcout << "Assembling system..."
                   << "\n";
         
             assemble_system();
-            pcout<<"assembled system!!"<<std::endl;
+            pcout<<"Assembled system!!"<<std::endl;
             output_dof_results(cycle);
             pcout << "dof output written" << std::endl;
             if (mortar_flag)
