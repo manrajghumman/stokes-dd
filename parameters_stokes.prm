@@ -7,7 +7,7 @@ set dim              = 2
 set degree           = 1
 set refinements      = 5
 set quad_degree      = 11
-set initial_grid_2D  = 1, 2
+set initial_grid_2D  = 2, 1
 set initial_grid_3D  = 1, 1, 1
 
 #################################################################################
@@ -29,7 +29,7 @@ end
 subsection Mortar
 	set mortar              = no
 	set continuous_mortar   = yes
-	set mortar_degree       = 1
+	set mortar_degree       = 2
 end
 
 #################################################################################

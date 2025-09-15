@@ -80,7 +80,18 @@ namespace dd_stokes
 
     // void
     // compute_multiscale_basis();
-
+    void
+    interface_matrix_column(BlockVector<double>     &local_flux_change,
+                            unsigned int            &side,
+                            const Quadrature<dim-1> &quad,
+                            FEFaceValues<dim>       &fe_face_values,
+                            std::vector<double>     &column);
+    double
+    inner_product_l2(BlockVector<double>     &vec1,
+                     BlockVector<double>     &vec2,
+                     unsigned int            &side,
+                     const Quadrature<dim-1> &quad,
+                     FEFaceValues<dim>       &fe_face_values);
     void
     print_interface_matrix(unsigned int &cycle);
 

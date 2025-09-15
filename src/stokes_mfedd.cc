@@ -727,7 +727,6 @@ namespace dd_stokes
 
     const FEValuesExtractors::Vector velocities(0);
     std::vector<Tensor<1, dim>>          interface_values(n_face_q_points, Tensor<1, dim>());
-    std::vector<Tensor<1, dim>>          tmp(n_face_q_points, Tensor<1, dim>());
     std::vector<Tensor<1, dim>>          phi_u(dofs_per_cell);
     const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
     int side;
@@ -816,6 +815,172 @@ namespace dd_stokes
     }
   }
 
+  template <int dim>
+  void MixedStokesProblemDD<dim>::interface_matrix_column(BlockVector<double>     &local_flux_change,
+                                                          unsigned int            &side,
+                                                          const Quadrature<dim-1> &quad,
+                                                          FEFaceValues<dim>       &fe_face_values,
+                                                          std::vector<double>     &column)
+  {
+    BlockVector<double> tmp_basis;
+    if (mortar_flag)
+    {
+      tmp_basis.reinit(solution_bar_mortar);
+    }
+    else
+    {
+      tmp_basis.reinit(solution_bar_stokes);
+    }
+    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
+    for (unsigned int face = 0; face < n_faces_per_cell; ++face)
+      if (neighbors[face] >= 0)
+        for (unsigned int i = 0; i < interface_dofs[face].size(); ++i)
+          {
+            tmp_basis                          = 0;
+            tmp_basis[interface_dofs[side][i]] = 1.0;
+            for (unsigned int j = 0; j < tmp_basis.size(); ++j)
+              column[j] += inner_product_l2(local_flux_change, 
+                                            tmp_basis, 
+                                            side, 
+                                            quad, 
+                                            fe_face_values);
+          }
+  }
+  /*
+  inner_product_l2 - compute l2 inner product on the edge `side'
+  input : vec1, vec2 - the two vectors to compute the inner product
+          side - the edge number for computing boundary integral
+          quad - quadrature formula on the face
+          fe_face_values - FEFaceValues object for the face
+  output: the inner product
+  Note: this function is only implemented for dim = 2 right now
+  */ 
+  template <int dim>
+  double
+  MixedStokesProblemDD<dim>::inner_product_l2(BlockVector<double>     &vec1,
+                                              BlockVector<double>     &vec2,
+                                              unsigned int            &side,
+                                              const Quadrature<dim-1> &quad,
+                                              FEFaceValues<dim>       &fe_face_values)
+  {
+    if (dim == 3)
+      AssertThrow(false,
+        ExcMessage("inner_prod not implemented for dim = 3!"));
+    
+    // TimerOutput::Scope t(computing_timer, "Assemble RHS star");
+    double inner_product;
+    inner_product = 0;
+
+    const unsigned int n_face_q_points = fe_face_values.get_quadrature().size();
+    const unsigned int dofs_per_cell   = fe.dofs_per_cell;
+
+    // Vector<double>                       local_rhs(dofs_per_cell);
+    Vector<double>                       local_inner_product(dofs_per_cell);
+    // std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+
+    const FEValuesExtractors::Vector           velocities(0);
+    std::vector<Tensor<1, dim>>                vec1_values(n_face_q_points, Tensor<1, dim>());
+    std::vector<Tensor<1, dim>>                vec2_values(n_face_q_points, Tensor<1, dim>());
+
+    // std::vector<Tensor<1, dim>>                interface_values(n_face_q_points, Tensor<1, dim>());
+    // std::vector<Tensor<1, dim>>                flux_change_values(n_face_q_points, Tensor<1, dim>());
+    // std::vector<Tensor<1, dim>>                phi_u(dofs_per_cell);
+    // std::vector<std::vector<Tensor<1, dim>>>   phi_lambda(dofs_per_cell, std::vector<Tensor<1, dim>>(n_face_q_points));
+    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
+    // int side;
+    // if (this_mpi == 1)
+    //   std::cout << "Assembling RHS star for this_mpi = " << this_mpi << std::endl;
+    for (const auto &cell : dof_handler.active_cell_iterators())
+      for (unsigned int face_n = 0;face_n < n_faces_per_cell;++face_n)
+        if (cell->at_boundary(face_n) &&
+                (cell->face(face_n)->boundary_id() != 0) && (cell->face(face_n)->boundary_id() !=7))
+        {
+          fe_face_values.reinit(cell, face_n);
+          fe_face_values[velocities].get_function_values(vec1, vec1_values);
+          fe_face_values[velocities].get_function_values(vec2, vec2_values);
+          for (unsigned int q_point = 0; q_point < n_face_q_points; ++q_point)
+            inner_product += vec1_values[q_point] * vec2_values[q_point] * fe_face_values.JxW(q_point);
+        }
+    
+    return inner_product;
+
+    // for (const auto &cell : dof_handler.active_cell_iterators())
+    //   {
+    //     local_rhs                   = 0;
+    //     cell->get_dof_indices(local_dof_indices);
+    //     for (unsigned int face_n = 0;face_n < n_faces_per_cell;++face_n)
+    //       {
+    //       if (cell->at_boundary(face_n) &&
+    //           (cell->face(face_n)->boundary_id() != 0) && (cell->face(face_n)->boundary_id() !=7)  )
+    //           {
+    //             //Need to reorder faces deal.ii iterators 
+    //             //use a different ordering from freefem ... only works for 2D
+    //             Assert(dim == 2,
+    //                    ExcMessage("This function is only implemented for dim = 2."));
+    //             fe_face_values.reinit(cell, face_n);
+    //             if (face_n == 0)
+    //               side = 3;
+    //             else if (face_n == 1)
+    //               side = 1;
+    //             else if (face_n == 2)
+    //               side = 0;
+    //             else 
+    //               side = 2;
+    //             // std::cout << "interface_fe_function[side].block(0).size(): " << interface_fe_function[side].size() << " this_mpi, side = " << this_mpi << ", " << side << std::endl;
+    //             // std::cout << "\ninterface_values = " << interface_values.size() << std::endl;
+    //             fe_face_values[velocities].get_function_values(
+    //               interface_fe_function[side], interface_values);
+    //             fe_face_values[velocities].get_function_values(
+    //               local_flux_change, flux_change_values);
+                
+    //             // compute phi_lambda here
+    //             if (neighbors[face_n] >= 0) // only compute for the interface shared between subdomains
+    //               for (unsigned int k = 0; k < dofs_per_cell; ++k)
+    //               {
+    //                 tmp_basis = 0;
+    //                 tmp_basis[local_dof_indices[k]] = 1.0;
+    //                 if (mortar_flag)
+    //                 {
+    //                   project_mortar(P_coarse2fine,
+    //                                 dof_handler_mortar,
+    //                                 tmp_basis,
+    //                                 quad,
+    //                                 constraints_mortar,
+    //                                 neighbors,
+    //                                 dof_handler,
+    //                                 interface_fe_function[side]);
+                          
+    //                   interface_fe_function[side].block(1) = 0;
+    //                 }
+    //                 else
+    //                   interface_fe_function[side] = tmp_basis;
+                    
+    //                 fe_face_values[velocities].get_function_values(
+    //                   interface_fe_function[side], phi_lambda[k]);
+    //               }
+    //             else
+    //             {
+    //               for (unsigned int k = 0; k < dofs_per_cell; ++k)
+    //                 for (unsigned int q_point = 0; q_point < n_face_q_points; ++q_point)
+    //                   phi_lambda[k][q_point] = 0;
+    //             }
+
+    //             for (unsigned int q_point = 0; q_point < n_face_q_points; ++q_point)
+    //             {
+    //               for (unsigned int i = 0; i < dofs_per_cell; ++i){
+    //                 local_inner_product(i) +=
+    //                   - (phi_lambda[i][q_point] * get_normal_direction(cell->face(face_n)->boundary_id()-1)*  // phi_v_i(x_q)
+    //                    flux_change_values[q_point]) *    // Tn_i = lambda
+    //                    fe_face_values.JxW(q_point);    // dx
+    //               }
+    //             }
+    //           }  
+    //       }
+    //         for (unsigned int i = 0; i < dofs_per_cell; ++i)
+    //           inner_product(local_dof_indices[i]) += local_inner_product(i);
+    //   }
+    //   column = inner_product;
+  }
 
   template <int dim>
   void
@@ -853,11 +1018,10 @@ namespace dd_stokes
     // for (auto vec : interface_dofs)
     //   for (auto el : vec)
     //     n_interface_dofs += 1;
-    std::vector<BlockVector<double>> lambda_basis;
-    // lambda_basis.resize(n_interface_dofs);
 
     BlockVector<double> tmp_basis;
     BlockVector<double> local_flux_change;
+    std::vector<double> column(n_interface_dofs, 0.0);
     
     if (mortar_flag)
     {
@@ -975,9 +1139,30 @@ namespace dd_stokes
                 for (unsigned int i = 0; i < interface_dofs[face].size(); ++i)
                   local_flux_change[interface_dofs[face][i]] = - interface_data_send[face][i]; // the contribution from the other side
                                                                                           // is zero since lambda = 0 on the other side
+
+            if (mortar_flag)
+            {
+              FEFaceValues<dim> fe_face_values_mortar(fe_mortar,
+                                                      quad,
+                                                      update_values |
+                                                      update_normal_vectors |
+                                                      update_quadrature_points |
+                                                      update_JxW_values);
+              interface_matrix_column(local_flux_change,
+                                      side,
+                                      quad,
+                                      fe_face_values_mortar,
+                                      column);
+            }
+            else
+              interface_matrix_column(local_flux_change,
+                                      side,
+                                      quad,
+                                      fe_face_values,
+                                      column);
             // needs a method later to add the local entries to the interface matrix
             for (unsigned int i = 0; i < n_interface_dofs; ++i)
-              local_matrix(i,ind) += local_flux_change[interface_dofs_total[i]];
+              local_matrix(i,ind) += column[i];//local_matrix(i,ind) += column[interface_dofs_total[i]]
             ind += 1;
             pcout << "\r print interface matrix: " << ind << std::flush;
           }
@@ -987,12 +1172,12 @@ namespace dd_stokes
     //     local_matrix.print(std::cout);
     //   }
     copy_matrix_local_to_global<dim>(local_matrix,
-                                      interface_dofs,
-                                      interface_dofs_size,
-                                      this_mpi,
-                                      n_processes,
-                                      mpi_communicator,         
-                                      interface_matrix);
+                                     interface_dofs,
+                                     interface_dofs_size,
+                                     this_mpi,
+                                     n_processes,
+                                     mpi_communicator,         
+                                     interface_matrix);
     // if (this_mpi == 0)
     //   interface_matrix.print(std::cout);
     // if (this_mpi == 0)
@@ -1178,9 +1363,9 @@ namespace dd_stokes
               interface_fe_function[side].reinit(solution_bar_stokes);
               interface_fe_function_fe[side].reinit(solution_bar_stokes);
         }
+
     if (print_interface_matrix_flag)
       print_interface_matrix(cycle); // important to keep it after solve_bar() and after initializing interface_fe_function
-
 
     // Extra for projections from mortar to fine grid and RHS assembly
     Quadrature<dim - 1> quad;
@@ -1193,6 +1378,7 @@ namespace dd_stokes
                                     update_values | update_normal_vectors |
                                       update_quadrature_points |
                                       update_JxW_values);
+
     if (mortar_flag == 1)
     { 
       for (unsigned int side = 0; side < n_faces_per_cell; ++side)
@@ -1750,9 +1936,9 @@ namespace dd_stokes
               interface_fe_function_fe[side].reinit(solution_bar_stokes);
               // interface_fe_function_mortar[side].reinit(solution_bar_mortar);
         }
+
     if (print_interface_matrix_flag)
       print_interface_matrix(cycle); // important to keep it after solve_bar() and initializing interface_fe_function
-
 
     // Extra for projections from mortar to fine grid and RHS assembly
     Quadrature<dim - 1> quad;
