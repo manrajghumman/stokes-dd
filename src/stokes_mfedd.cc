@@ -838,8 +838,8 @@ namespace dd_stokes
           {
             tmp_basis                          = 0;
             tmp_basis[interface_dofs[side][i]] = 1.0;
-            for (unsigned int j = 0; j < tmp_basis.size(); ++j)
-              column[j] += inner_product_l2(local_flux_change, 
+            // for (unsigned int j = 0; j < interface_dofs_total.size(); ++j)
+              column[i] += inner_product_l2(local_flux_change, 
                                             tmp_basis, 
                                             side, 
                                             quad, 
@@ -1139,7 +1139,8 @@ namespace dd_stokes
                 for (unsigned int i = 0; i < interface_dofs[face].size(); ++i)
                   local_flux_change[interface_dofs[face][i]] = - interface_data_send[face][i]; // the contribution from the other side
                                                                                           // is zero since lambda = 0 on the other side
-
+            
+            std::fill(column.begin(), column.end(), 0.0);
             if (mortar_flag)
             {
               FEFaceValues<dim> fe_face_values_mortar(fe_mortar,
@@ -1162,7 +1163,7 @@ namespace dd_stokes
                                       column);
             // needs a method later to add the local entries to the interface matrix
             for (unsigned int i = 0; i < n_interface_dofs; ++i)
-              local_matrix(i,ind) += column[i];//local_matrix(i,ind) += column[interface_dofs_total[i]]
+              local_matrix(i,ind) += column[i];//local_matrix(i,ind) += local_flux_change[interface_dofs_total[i]]
             ind += 1;
             pcout << "\r print interface matrix: " << ind << std::flush;
           }
