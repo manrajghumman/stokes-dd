@@ -882,15 +882,15 @@ namespace dd_stokes
     std::vector<Tensor<1, dim>>                vec1_values(n_face_q_points, Tensor<1, dim>());
     std::vector<Tensor<1, dim>>                vec2_values(n_face_q_points, Tensor<1, dim>());
 
-    // std::vector<Tensor<1, dim>>                interface_values(n_face_q_points, Tensor<1, dim>());
-    // std::vector<Tensor<1, dim>>                flux_change_values(n_face_q_points, Tensor<1, dim>());
-    // std::vector<Tensor<1, dim>>                phi_u(dofs_per_cell);
-    // std::vector<std::vector<Tensor<1, dim>>>   phi_lambda(dofs_per_cell, std::vector<Tensor<1, dim>>(n_face_q_points));
     const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
-    // int side;
-    // if (this_mpi == 1)
-    //   std::cout << "Assembling RHS star for this_mpi = " << this_mpi << std::endl;
-    for (const auto &cell : dof_handler.active_cell_iterators())
+    typename DoFHandler<dim>::active_cell_iterator cell, endc;
+    if (mortar_flag == 0)
+      cell = dof_handler.begin_active(), endc = dof_handler.end();
+    else
+      cell = dof_handler_mortar.begin_active(), endc = dof_handler_mortar.end();
+        
+    // for (const auto &cell : dof_handler.active_cell_iterators())
+    for (; cell != endc; ++cell)
       for (unsigned int face_n = 0;face_n < n_faces_per_cell;++face_n)
         if (cell->at_boundary(face_n) &&
                 (cell->face(face_n)->boundary_id() != 0) && (cell->face(face_n)->boundary_id() !=7))
