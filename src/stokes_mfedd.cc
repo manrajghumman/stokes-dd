@@ -104,7 +104,7 @@ namespace dd_stokes
         return FESystem<dim>(FE_RaviartThomas<dim>(mortar_degree), 1, FE_Nothing<dim>(), 1);
       else
         return FESystem<dim>(FE_Nothing<dim>(), dim, FE_Nothing<dim>(), 1);
-    }()) // Conditional initialization using a lambda function
+      }()) // Conditional initialization using a lambda function
     , pcout(std::cout,
             (Utilities::MPI::this_mpi_process(mpi_communicator) == 0))
     , computing_timer(mpi_communicator,

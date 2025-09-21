@@ -1,4 +1,6 @@
-Code for enforcing Stokes with domain decomposition. 
+Code for modeling free fluid motion using 
+Stokes equations with domain decomposition.
+Problem can be scaled to multiple cores. 
 
 Can use cg or gmres with and without mortar.
 
