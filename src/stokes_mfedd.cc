@@ -2,7 +2,8 @@
  * Implementation of the MixedStokesProblemDD class
  * ---------------------------------------------------------------------
  *
- * Author: Manu Jayadharan, Northwestern University, 2024.
+ * Author: Manraj Ghumman, University of Pittsburgh, 2025 
+ *         Manu Jayadharan, Northwestern University, 2024.
  * based on the Eldar Khattatov's Elasticity DD implementation from 2017.
  */
 
@@ -999,21 +1000,10 @@ namespace dd_stokes
             }
             else
               interface_fe_function[side] = tmp_basis;
-            // std::cout << "\nhello2.5, side = " << side << " ind = " << ind << " this_mpi = " << this_mpi << std::endl;
-            // std::cout << "interface_fe_function[side].size(): " << interface_fe_function[side].size() 
-            //           << " this_mpi, side, ind = " << this_mpi << ", " << side << ", " << ind 
-            //           << std::endl;
-            // if (this_mpi == 1 && ind == 1)
-            //   for (unsigned int j = 0; j < interface_fe_function[side].size(); ++j)
-            //     {
-            //       std::cout << "interface_fe_function[side][j]: " << interface_fe_function[side][j] << ", j = " << j 
-            //                 << " this_mpi, side, ind = " << this_mpi << ", " << side << ", " << ind 
-            //                 << std::endl;
-            //     }
+      
             assemble_rhs_star(fe_face_values);
-            // std::cout << "\nhello2.51, side = " << side << " ind = " << ind << " this_mpi = " << this_mpi << std::endl;
             solve_star();
-            // std::cout << "\nhello2.6, side = " << side << " ind = " << ind << " this_mpi = " << this_mpi << std::endl;
+            
             if (mortar_flag)
             {
               project_mortar(P_fine2coarse,
@@ -1035,10 +1025,7 @@ namespace dd_stokes
                   for (unsigned int i = 0; i < interface_dofs[face].size(); ++i)
                     interface_data_send[face][i] = get_normal_direction(face) *
                                                   solution_star_stokes[interface_dofs[face][i]];
-              // for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-              //   interface_data_send[side][i] = get_normal_direction(side) *
-              //                                     solution_star_stokes[interface_dofs[side][i]];
-            // std::cout << "\nhello3, side = " << side << " ind = " << ind << " this_mpi = " << this_mpi << std::endl
+              
             MPI_Send(&interface_data_send[side][0],
                       interface_dofs[side].size(),
                       MPI_DOUBLE,
@@ -1052,7 +1039,7 @@ namespace dd_stokes
                       neighbors[side],
                       mpi_communicator,
                       &mpi_status);
-            // std::cout << "\nhello4, side = " << side <<" ind = " << ind << " this_mpi = " << this_mpi << std::endl;
+            
             for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
               local_flux_change[interface_dofs[side][i]] = - (interface_data_send[side][i] +
                                                                   interface_data_receive[side][i]);
@@ -1089,11 +1076,7 @@ namespace dd_stokes
             ind += 1;
             pcout << "\r print interface matrix: " << ind << std::flush;
           }
-    // if (this_mpi == 1)
-    //   {
-    //     std::cout << "\n local_matrix before exchange: \n" << std::endl;
-    //     local_matrix.print(std::cout);
-    //   }
+    
     copy_matrix_local_to_global<dim>(local_matrix,
                                      interface_dofs,
                                      interface_dofs_size,
@@ -1101,14 +1084,7 @@ namespace dd_stokes
                                      n_processes,
                                      mpi_communicator,         
                                      interface_matrix);
-    // if (this_mpi == 0)
-    //   interface_matrix.print(std::cout);
-    // if (this_mpi == 0)
-    // {
-    //   std::cout << "this_mpi = " << this_mpi
-    //             << "\n before printing interface_matrix: \n" << std::endl;
-    //             interface_matrix.print(std::cout);
-    // }
+    
     if (this_mpi == 0)
     {
       std::ofstream file;
@@ -2294,499 +2270,6 @@ namespace dd_stokes
   }
 
 
-
-  // MixedStokesProblemDD::compute_interface_error
-  // template <int dim>
-  // double
-  // MixedStokesProblemDD<dim>::compute_interface_error(
-  //   Function<dim> &exact_solution)
-  // {
-  //   system_rhs_star_stokes = 0;
-
-  //   QGauss<dim - 1>   quad(qdegree);
-  //   QGauss<dim - 1>   project_quad(qdegree);
-  //   FEFaceValues<dim> fe_face_values(fe,
-  //                                    quad,
-  //                                    update_values | update_normal_vectors |
-  //                                      update_quadrature_points |
-  //                                      update_JxW_values);
-
-  //   const unsigned int n_face_q_points = fe_face_values.get_quadrature().size();
-  //   const unsigned int dofs_per_cell   = fe.dofs_per_cell;
-  //   // const unsigned int dofs_per_cell_mortar = fe_mortar.dofs_per_cell;
-
-  //   Vector<double>                       local_rhs(dofs_per_cell);
-  //   std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
-
-  //   std::vector<FEValuesExtractors::Vector> stresses(
-  //     dim, FEValuesExtractors::Vector());
-  //   for (unsigned int d = 0; d < dim; ++d)
-  //     {
-  //       const FEValuesExtractors::Vector tmp_stress(d * dim);
-  //       stresses[d].first_vector_component = tmp_stress.first_vector_component;
-  //     }
-
-  //   std::vector<std::vector<Tensor<1, dim>>> interface_values(
-  //     dim, std::vector<Tensor<1, dim>>(n_face_q_points));
-  //   std::vector<std::vector<Tensor<1, dim>>> solution_values(
-  //     dim, std::vector<Tensor<1, dim>>(n_face_q_points));
-  //   std::vector<Vector<double>> displacement_values(n_face_q_points,
-  //                                                   Vector<double>(dim));
-
-  //   // Assemble rhs for star problem with data = u - lambda_H on interfaces
-  //   typename DoFHandler<dim>::active_cell_iterator cell =
-  //                                                    dof_handler.begin_active(),
-  //                                                  endc = dof_handler.end();
-  //   for (; cell != endc; ++cell)
-  //     {
-  //       local_rhs = 0;
-  //       cell->get_dof_indices(local_dof_indices);
-
-  //       for (unsigned int face_n = 0;
-  //            face_n < GeometryInfo<dim>::faces_per_cell;
-  //            ++face_n)
-  //         if (cell->at_boundary(face_n) &&
-  //             cell->face(face_n)->boundary_id() != 0)
-  //           {
-  //             fe_face_values.reinit(cell, face_n);
-
-  //             for (unsigned int d_i = 0; d_i < dim; ++d_i)
-  //               fe_face_values[stresses[d_i]].get_function_values(
-  //                 interface_fe_function, interface_values[d_i]);
-
-  //             exact_solution.vector_value_list(
-  //               fe_face_values.get_quadrature_points(), displacement_values);
-
-  //             for (unsigned int q = 0; q < n_face_q_points; ++q)
-  //               for (unsigned int i = 0; i < dofs_per_cell; ++i)
-  //                 {
-  //                   Tensor<2, dim> sigma;
-  //                   Tensor<2, dim> interface_lambda;
-  //                   for (unsigned int d_i = 0; d_i < dim; ++d_i)
-  //                     fe_face_values[stresses[d_i]].get_function_values(
-  //                       interface_fe_function, interface_values[d_i]);
-
-  //                   Tensor<1, dim> sigma_n =
-  //                     sigma * fe_face_values.normal_vector(q);
-  //                   for (unsigned int d_i = 0; d_i < dim; ++d_i)
-  //                     local_rhs(i) +=
-  //                       fe_face_values[stresses[d_i]].value(i, q) *
-  //                       fe_face_values.normal_vector(q) *
-  //                       (displacement_values[q][d_i] -
-  //                        interface_values[d_i][q] *
-  //                          get_normal_direction(
-  //                            cell->face(face_n)->boundary_id() - 1) *
-  //                          fe_face_values.normal_vector(q)) *
-  //                       fe_face_values.JxW(q);
-  //                 }
-  //           }
-
-  //       for (unsigned int i = 0; i < dofs_per_cell; ++i)
-  //         system_rhs_star_stokes(local_dof_indices[i]) += local_rhs(i);
-  //     }
-
-  //   // Solve star problem with data given by p - lambda_h
-  //   solve_star();
-
-  //   double res = 0;
-
-  //   FEFaceValues<dim> fe_face_values_mortar(fe_mortar,
-  //                                           quad,
-  //                                           update_values |
-  //                                             update_normal_vectors |
-  //                                             update_quadrature_points |
-  //                                             update_JxW_values);
-
-  //   // Compute the discrete interface norm
-  //   cell = dof_handler_mortar.begin_active(), endc = dof_handler_mortar.end();
-  //   for (; cell != endc; ++cell)
-  //     {
-  //       for (unsigned int face_n = 0;
-  //            face_n < GeometryInfo<dim>::faces_per_cell;
-  //            ++face_n)
-  //         if (cell->at_boundary(face_n) &&
-  //             cell->face(face_n)->boundary_id() != 0)
-  //           {
-  //             fe_face_values_mortar.reinit(cell, face_n);
-
-  //             for (unsigned int d_i = 0; d_i < dim; ++d_i)
-  //               {
-  //                 fe_face_values_mortar[stresses[d_i]].get_function_values(
-  //                   solution_star_mortar, solution_values[d_i]);
-  //                 fe_face_values_mortar[stresses[d_i]].get_function_values(
-  //                   interface_fe_function_mortar, interface_values[d_i]);
-  //               }
-
-  //             exact_solution.vector_value_list(
-  //               fe_face_values_mortar.get_quadrature_points(),
-  //               displacement_values);
-
-  //             for (unsigned int q = 0; q < n_face_q_points; ++q)
-  //               for (unsigned int d_i = 0; d_i < dim; ++d_i)
-  //                 res += fabs(fe_face_values_mortar.normal_vector(q) *
-  //                             solution_values[d_i][q] *
-  //                             (displacement_values[q][d_i] -
-  //                              fe_face_values_mortar.normal_vector(q) *
-  //                                interface_values[d_i][q] *
-  //                                get_normal_direction(
-  //                                  cell->face(face_n)->boundary_id() - 1)) *
-  //                             fe_face_values_mortar.JxW(q));
-  //           }
-  //     }
-
-  //   return sqrt(res);
-  // }
-
-
-  // // MixedStokesProblemDD::compute_errors
-  // template <int dim>
-  // void
-  // MixedStokesProblemDD<dim>::compute_errors(const unsigned int &cycle)
-  // {
-  //   TimerOutput::Scope t(computing_timer, "Compute Errors");
-
-  //   const ComponentSelectFunction<dim> rotation_mask(dim * dim + dim,
-  //                                                    dim * dim + dim +
-  //                                                      0.5 * dim * (dim - 1));
-  //   const ComponentSelectFunction<dim> displacement_mask(
-  //     std::make_pair(dim * dim, dim * dim + dim),
-  //     dim * dim + dim + 0.5 * dim * (dim - 1));
-  //   const ComponentSelectFunction<dim> stress_mask(std::make_pair(0, dim * dim),
-  //                                                  dim * dim + dim +
-  //                                                    0.5 * dim * (dim - 1));
-  //   ExactSolution<dim>                 exact_solution;
-
-  //   // Vectors to temporarily store cellwise errros
-  //   Vector<double> cellwise_errors(triangulation.n_active_cells());
-  //   Vector<double> cellwise_norms(triangulation.n_active_cells());
-
-  //   // Vectors to temporarily store cellwise componentwise div errors
-  //   Vector<double> cellwise_div_errors(triangulation.n_active_cells());
-  //   Vector<double> cellwise_div_norms(triangulation.n_active_cells());
-
-  //   // Define quadrature points to compute errors at
-  //   QGauss<dim> quadrature(degree + 5);
-
-  //   // This is used to show superconvergence at midcells
-  //   QGauss<dim> quadrature_super(1);
-
-  //   // Since we want to compute the relative norm
-  //   BlockVector<double> zerozeros(1, solution_star_stokes.size());
-
-  //   // Rotation error and norm
-  //   VectorTools::integrate_difference(dof_handler,
-  //                                     solution,
-  //                                     exact_solution,
-  //                                     cellwise_errors,
-  //                                     quadrature,
-  //                                     VectorTools::L2_norm,
-  //                                     &rotation_mask);
-  //   const double p_l2_error = cellwise_errors.l2_norm();
-
-  //   VectorTools::integrate_difference(dof_handler,
-  //                                     zerozeros,
-  //                                     exact_solution,
-  //                                     cellwise_norms,
-  //                                     quadrature,
-  //                                     VectorTools::L2_norm,
-  //                                     &rotation_mask);
-  //   const double p_l2_norm = cellwise_norms.l2_norm();
-
-  //   // Displacement error and norm
-  //   VectorTools::integrate_difference(dof_handler,
-  //                                     solution,
-  //                                     exact_solution,
-  //                                     cellwise_errors,
-  //                                     quadrature,
-  //                                     VectorTools::L2_norm,
-  //                                     &displacement_mask);
-  //   const double u_l2_error = cellwise_errors.l2_norm();
-
-  //   VectorTools::integrate_difference(dof_handler,
-  //                                     zerozeros,
-  //                                     exact_solution,
-  //                                     cellwise_norms,
-  //                                     quadrature,
-  //                                     VectorTools::L2_norm,
-  //                                     &displacement_mask);
-  //   const double u_l2_norm = cellwise_norms.l2_norm();
-
-  //   // Displacement error and norm at midcells
-  //   VectorTools::integrate_difference(dof_handler,
-  //                                     solution,
-  //                                     exact_solution,
-  //                                     cellwise_errors,
-  //                                     quadrature_super,
-  //                                     VectorTools::L2_norm,
-  //                                     &displacement_mask);
-  //   const double u_l2_mid_error = cellwise_errors.l2_norm();
-
-  //   VectorTools::integrate_difference(dof_handler,
-  //                                     zerozeros,
-  //                                     exact_solution,
-  //                                     cellwise_norms,
-  //                                     quadrature_super,
-  //                                     VectorTools::L2_norm,
-  //                                     &displacement_mask);
-  //   const double u_l2_mid_norm = cellwise_norms.l2_norm();
-
-  //   // Stress L2 error and norm
-  //   VectorTools::integrate_difference(dof_handler,
-  //                                     solution,
-  //                                     exact_solution,
-  //                                     cellwise_errors,
-  //                                     quadrature,
-  //                                     VectorTools::L2_norm,
-  //                                     &stress_mask);
-  //   const double s_l2_error = cellwise_errors.l2_norm();
-
-  //   VectorTools::integrate_difference(dof_handler,
-  //                                     zerozeros,
-  //                                     exact_solution,
-  //                                     cellwise_norms,
-  //                                     quadrature,
-  //                                     VectorTools::L2_norm,
-  //                                     &stress_mask);
-
-  //   const double s_l2_norm = cellwise_norms.l2_norm();
-
-  //   // Stress Hdiv seminorm
-  //   cellwise_errors = 0;
-  //   cellwise_norms  = 0;
-  //   for (int i = 0; i < dim; ++i)
-  //     {
-  //       const ComponentSelectFunction<dim> stress_component_mask(
-  //         std::make_pair(i * dim, (i + 1) * dim),
-  //         dim * dim + dim + 0.5 * dim * (dim - 1));
-
-  //       VectorTools::integrate_difference(dof_handler,
-  //                                         solution,
-  //                                         exact_solution,
-  //                                         cellwise_div_errors,
-  //                                         quadrature,
-  //                                         VectorTools::Hdiv_seminorm,
-  //                                         &stress_component_mask);
-  //       cellwise_errors += cellwise_div_errors;
-
-  //       VectorTools::integrate_difference(dof_handler,
-  //                                         zerozeros,
-  //                                         exact_solution,
-  //                                         cellwise_div_norms,
-  //                                         quadrature,
-  //                                         VectorTools::Hdiv_seminorm,
-  //                                         &stress_component_mask);
-  //       cellwise_norms += cellwise_div_norms;
-  //     }
-
-  //   const double s_hd_error = cellwise_errors.l2_norm();
-  //   const double s_hd_norm  = cellwise_norms.l2_norm();
-
-  //   double l_int_error = 1, l_int_norm = 1;
-
-  //   if (mortar_flag)
-  //     {
-  //       DisplacementBoundaryValues<dim> displ_solution;
-  //       l_int_error = compute_interface_error(displ_solution);
-
-  //       interface_fe_function        = 0;
-  //       interface_fe_function_mortar = 0;
-  //       l_int_norm                   = compute_interface_error(displ_solution);
-  //     }
-
-  //   double send_buf_num[6] = {s_l2_error,
-  //                             s_hd_error,
-  //                             u_l2_error,
-  //                             u_l2_mid_error,
-  //                             p_l2_error,
-  //                             l_int_error};
-  //   double send_buf_den[6] = {
-  //     s_l2_norm, s_hd_norm, u_l2_norm, u_l2_mid_norm, p_l2_norm, l_int_norm};
-
-  //   double recv_buf_num[6] = {0, 0, 0, 0, 0, 0};
-  //   double recv_buf_den[6] = {0, 0, 0, 0, 0, 0};
-
-  //   MPI_Reduce(&send_buf_num[0],
-  //              &recv_buf_num[0],
-  //              6,
-  //              MPI_DOUBLE,
-  //              MPI_SUM,
-  //              0,
-  //              mpi_communicator);
-  //   MPI_Reduce(&send_buf_den[0],
-  //              &recv_buf_den[0],
-  //              6,
-  //              MPI_DOUBLE,
-  //              MPI_SUM,
-  //              0,
-  //              mpi_communicator);
-
-  //   for (unsigned int i = 0; i < 6; ++i)
-  //     recv_buf_num[i] = recv_buf_num[i] / recv_buf_den[i];
-
-  //   if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
-  //     {
-  //       convergence_table.add_value("cycle", cycle);
-  //       convergence_table.add_value("# CG", gmres_iteration);
-  //       convergence_table.add_value("Stress,L2", recv_buf_num[0]);
-  //       convergence_table.add_value("Stress,Hdiv", recv_buf_num[1]);
-  //       convergence_table.add_value("Displ,L2", recv_buf_num[2]);
-  //       convergence_table.add_value("Displ,L2mid", recv_buf_num[3]);
-  //       convergence_table.add_value("Rotat,L2", recv_buf_num[4]);
-
-  //       if (mortar_flag)
-  //         convergence_table.add_value("Lambda,Int", recv_buf_num[6]);
-  //     }
-  // }
-
-
-  // // MixedStokesProblemDD::output_results
-  // template <int dim>
-  // void
-  // MixedStokesProblemDD<dim>::output_results(const unsigned int &cycle,
-  //                                           const unsigned int &refine,
-  //                                           const std::string & name)
-  // {
-  //   TimerOutput::Scope t(computing_timer, "Output results");
-  //   unsigned int       n_processes =
-  //     Utilities::MPI::n_mpi_processes(mpi_communicator);
-  //   unsigned int this_mpi = Utilities::MPI::this_mpi_process(mpi_communicator);
-
-
-  //   std::vector<std::string> solution_names;
-  //   std::string              rhs_name = "rhs";
-
-  //   switch (dim)
-  //     {
-  //       case 2:
-  //         solution_names.push_back("s11");
-  //         solution_names.push_back("s12");
-  //         solution_names.push_back("s21");
-  //         solution_names.push_back("s22");
-  //         solution_names.push_back("u");
-  //         solution_names.push_back("v");
-  //         solution_names.push_back("p");
-  //         break;
-
-  //       case 3:
-  //         solution_names.push_back("s11");
-  //         solution_names.push_back("s12");
-  //         solution_names.push_back("s13");
-  //         solution_names.push_back("s21");
-  //         solution_names.push_back("s22");
-  //         solution_names.push_back("s23");
-  //         solution_names.push_back("s31");
-  //         solution_names.push_back("s32");
-  //         solution_names.push_back("s33");
-  //         solution_names.push_back("u");
-  //         solution_names.push_back("v");
-  //         solution_names.push_back("w");
-  //         solution_names.push_back("p1");
-  //         solution_names.push_back("p2");
-  //         solution_names.push_back("p3");
-  //         break;
-
-  //       default:
-  //         Assert(false, ExcNotImplemented());
-  //     }
-
-  //   std::vector<DataComponentInterpretation::DataComponentInterpretation>
-  //     data_component_interpretation(
-  //       dim * dim + dim + 0.5 * dim * (dim - 1) - 1,
-  //       DataComponentInterpretation::component_is_part_of_vector);
-
-  //   switch (dim)
-  //     {
-  //       case 2:
-  //         data_component_interpretation.push_back(
-  //           DataComponentInterpretation::component_is_scalar);
-  //         break;
-
-  //       case 3:
-  //         data_component_interpretation.push_back(
-  //           DataComponentInterpretation::component_is_part_of_vector);
-  //         break;
-
-  //       default:
-  //         Assert(false, ExcNotImplemented());
-  //         break;
-  //     }
-
-  //   DataOut<dim> data_out_star;
-  //   data_out_star.add_data_vector(dof_handler,
-  //                                 solution,
-  //                                 solution_names,
-  //                                 data_component_interpretation);
-  //   data_out_star.build_patches(degree);
-  //   std::ofstream output("solution" + name + "_p" +
-  //                        Utilities::to_string(this_mpi) + "-" +
-  //                        Utilities::to_string(cycle) + ".vtu");
-  //   data_out_star.write_vtu(output);
-
-
-  //   if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
-  //     {
-  //       convergence_table.set_precision("Stress,L2", 3);
-  //       convergence_table.set_precision("Stress,Hdiv", 3);
-  //       convergence_table.set_precision("Displ,L2", 3);
-  //       convergence_table.set_precision("Displ,L2mid", 3);
-  //       convergence_table.set_precision("Rotat,L2", 3);
-
-  //       convergence_table.set_scientific("Stress,L2", true);
-  //       convergence_table.set_scientific("Stress,Hdiv", true);
-  //       convergence_table.set_scientific("Displ,L2", true);
-  //       convergence_table.set_scientific("Displ,L2mid", true);
-  //       convergence_table.set_scientific("Rotat,L2", true);
-
-  //       convergence_table.set_tex_caption("# CG", "\\# cg");
-  //       convergence_table.set_tex_caption(
-  //         "Stress,L2", "$ \\|\\sigma - \\sigma_h\\|_{L^2} $");
-  //       convergence_table.set_tex_caption(
-  //         "Stress,Hdiv", "$ \\|\\nabla\\cdot(\\sigma - \\sigma_h)\\|_{L^2} $");
-  //       convergence_table.set_tex_caption("Displ,L2",
-  //                                         "$ \\|u - u_h\\|_{L^2} $");
-  //       convergence_table.set_tex_caption("Displ,L2mid",
-  //                                         "$ \\|Qu - u_h\\|_{L^2} $");
-  //       convergence_table.set_tex_caption("Rotat,L2",
-  //                                         "$ \\|p - p_h\\|_{L^2} $");
-
-  //       convergence_table.evaluate_convergence_rates(
-  //         "# CG", ConvergenceTable::reduction_rate_log2);
-  //       convergence_table.evaluate_convergence_rates(
-  //         "Stress,L2", ConvergenceTable::reduction_rate_log2);
-  //       convergence_table.evaluate_convergence_rates(
-  //         "Stress,Hdiv", ConvergenceTable::reduction_rate_log2);
-  //       convergence_table.evaluate_convergence_rates(
-  //         "Displ,L2", ConvergenceTable::reduction_rate_log2);
-  //       convergence_table.evaluate_convergence_rates(
-  //         "Displ,L2mid", ConvergenceTable::reduction_rate_log2);
-  //       convergence_table.evaluate_convergence_rates(
-  //         "Rotat,L2", ConvergenceTable::reduction_rate_log2);
-
-  //       if (mortar_flag)
-  //         {
-  //           convergence_table.set_precision("Lambda,Int", 3);
-  //           convergence_table.set_scientific("Lambda,Int", true);
-  //           convergence_table.set_tex_caption("Lambda,Int",
-  //                                             "$ \\|p - \\lambda_H\\|_{d_H} $");
-  //           convergence_table.evaluate_convergence_rates(
-  //             "Lambda,Int", ConvergenceTable::reduction_rate_log2);
-  //         }
-
-  //       if (cycle == refine - 1)
-  //         {
-  //           std::ofstream error_table_file(
-  //             "error" + name +
-  //             std::to_string(
-  //               Utilities::MPI::n_mpi_processes(mpi_communicator)) +
-  //             "domains.tex");
-  //           convergence_table.write_text(std::cout);
-  //           convergence_table.write_tex(error_table_file);
-  //         }
-  //     }
-  // }
-
-
-
   template <int dim>
   void MixedStokesProblemDD<dim>::compute_errors(const unsigned int &cycle, 
                                                  std::vector<std::vector<unsigned int>> &reps) 
@@ -2930,13 +2413,7 @@ namespace dd_stokes
       MPI_INT, //type of each element
       MPI_MIN, //find min of element received
       mpi_communicator);
-      // std::cout << "this_mpi = " << this_mpi << "reps[this_mpi][0] = " << reps[this_mpi][0] << std::endl;
-    // }
-    // else
-    // {
-    //   h = h * 2;
-    //   // std::cout << "this_mpi = " << this_mpi << "h = " << h << std::endl;
-    // }
+      
     if (cycle > 0)
     {
       order_u = std::log(u_l2_error / u_l2_error_old) / std::log(h / h_old);
@@ -2951,23 +2428,6 @@ namespace dd_stokes
       order_u_total = 0;
       order_p_total = 0;
     }
-    // int interface_dofs_size; 
-    // int tmp;
-    // if (dim == 2)
-    // {
-    //   if (this_mpi % 2 == 0)
-    //     tmp = 0;
-    //   else
-    //     tmp = interface_dofs_total.size();
-    //   MPI_Allreduce(&tmp, //sending this data
-    //     &interface_dofs_size, //receiving the result here
-    //     1, //number of elements in alpha and alpha_buffer = 1+1
-    //     MPI_INT, //type of each element
-    //     MPI_SUM, //adding all elements received
-    //     mpi_communicator);
-    // }
-    // else
-    //   throw std::runtime_error("dim = 3 not yet implemented!");
 
     double cond;
     double symm;
@@ -3205,25 +2665,9 @@ namespace dd_stokes
                                                         reps[n_processes],
                                                         p1,
                                                         p2);
-
-            
-            // GridGenerator::subdivided_hyper_rectangle(triangulation,
-            //                                             reps[3],
-            //                                             p1,
-            //                                             p2);
           }
         else
           {
-            // triangulation.refine_global(1);
-
-            // if (mortar_flag)
-            // {
-            //   triangulation_mortar.refine_global(1);
-            //   pcout << "Mortar mesh has "
-            //         << triangulation_mortar.n_active_cells() << " cells"
-            //         << std::endl;
-            // }
-
             // Partitioning into subdomains (simple bricks)
             find_divisors<dim>(n_processes, n_domains);
 

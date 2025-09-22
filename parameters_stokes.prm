@@ -7,7 +7,7 @@ set dim              = 2
 set degree           = 1
 set refinements      = 5
 set quad_degree      = 11
-set initial_grid_2D  = 1, 1
+set initial_grid_2D  = 1, 3
 set initial_grid_3D  = 1, 1, 1
 
 #################################################################################
@@ -27,7 +27,7 @@ end
 # Mortar Enforcement
 
 subsection Mortar
-	set mortar              = yes
+	set mortar              = no
 	set continuous_mortar   = yes
 	set mortar_degree       = 1
 end
