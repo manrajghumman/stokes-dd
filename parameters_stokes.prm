@@ -7,7 +7,7 @@ set dim              = 2
 set degree           = 1
 set refinements      = 5
 set quad_degree      = 11
-set initial_grid_2D  = 1, 3
+set initial_grid_2D  = 2, 2
 set initial_grid_3D  = 1, 1, 1
 
 #################################################################################
@@ -19,7 +19,7 @@ set initial_grid_3D  = 1, 1, 1
 
 subsection External Boundary Conditions
 	set essential_dirichlet = no
-	set boundary_2D         = D, N, D, N
+	set boundary_2D         = D, D, D, N
 	set boundary_3D         = N, D, D, D, D, D
 end
 
@@ -27,8 +27,8 @@ end
 # Mortar Enforcement
 
 subsection Mortar
-	set mortar              = no
-	set continuous_mortar   = yes
+	set mortar              = yes
+	set continuous_mortar   = no
 	set mortar_degree       = 1
 end
 
@@ -37,7 +37,7 @@ end
 
 subsection Solver
 	set iterative_method = GMRES
-	set max_iter         = 5000
+	set max_iter         = 100
 	set tol              = 1e-9
 end
 
@@ -46,5 +46,5 @@ end
 # (currently only works for m x 1 # grid setup)
 
 subsection Print Interface Matrix
-	set print_interface_matrix = yes
+	set print_interface_matrix = no
 end

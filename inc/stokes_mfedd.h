@@ -57,8 +57,8 @@ namespace dd_stokes
     MPI_Comm   mpi_communicator;
     MPI_Status mpi_status;
 
-    Projector::Projector<dim> P_coarse2fine;
-    Projector::Projector<dim> P_fine2coarse;
+    // Projector::Projector<dim> P_coarse2fine;
+    // Projector::Projector<dim> P_fine2coarse;
 
     void
     make_grid_and_dofs(const std::vector<unsigned int> &boundary_def);
@@ -93,7 +93,9 @@ namespace dd_stokes
                      const Quadrature<dim-1> &quad,
                      FEFaceValues<dim>       &fe_face_values);
     void
-    print_interface_matrix(unsigned int &cycle);
+    print_interface_matrix(Projector::Projector<dim> P_coarse2fine,
+                           Projector::Projector<dim> P_fine2coarse,
+                           unsigned int &cycle);
 
     void
     local_gmres(const unsigned int &maxiter, unsigned int &cycle);

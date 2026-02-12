@@ -633,6 +633,7 @@ namespace Projector
       {
         factorization.initialize(mass_matrix);
         factorization.vmult(solution, rhs);
+        state = true;
       }
   }
 

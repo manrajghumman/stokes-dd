@@ -57,7 +57,7 @@
 #include <algorithm>
 #include <cmath>
 // Utilities, data, etc.
-#include "../inc/data.h"
+#include "../inc/data_2.h"
 #include "../inc/stokes_mfedd.h"
 #include "../inc/utilities.h"
 #include "../inc/interface.h"
@@ -87,8 +87,8 @@ namespace dd_stokes
     , cont_mortar_flag((mortar_flag == 1 && mortar_degree == 0) ? false: cont_mortar_flag) // if mortar_degree is 0, use RT<dim> (0)
     , print_interface_matrix_flag(print_interface_matrix_flag)
     , mpi_communicator(MPI_COMM_WORLD)
-    , P_coarse2fine(false)
-    , P_fine2coarse(false)
+    // , P_coarse2fine(false)
+    // , P_fine2coarse(false)
     , n_domains(dim, 0)//vector of type unsigned int initialized to size dim with entries = 0
     , gmres_iteration(0)
 	  , cg_iteration(0)
@@ -168,7 +168,7 @@ namespace dd_stokes
             if (face->center()[dim - 1] == 0)
               if (boundary_cond[0] != 0)
                 face->set_all_boundary_ids(boundary_cond[0]);
-            if (face->center()[dim - 2] == 1)
+            if (face->center()[dim - 2] == 2)
               if (boundary_cond[1] != 0)
                 face->set_all_boundary_ids(boundary_cond[1]);
             if (face->center()[dim - 1] == 1)
@@ -577,11 +577,11 @@ namespace dd_stokes
   {
     TimerOutput::Scope t(computing_timer, "Get interface DoFs");
     interface_dofs.resize(GeometryInfo<dim>::faces_per_cell,
-                          std::vector<types::global_dof_index>());
+                          std::vector<unsigned int>());
     interface_dofs_fe.resize(GeometryInfo<dim>::faces_per_cell,
-                          std::vector<types::global_dof_index>());
+                          std::vector<unsigned int>());
     interface_dofs_find_neumann.resize(GeometryInfo<dim>::faces_per_cell,
-                          std::vector<types::global_dof_index>());
+                          std::vector<unsigned int>());
     interface_dofs_total.resize(0);
 
     const unsigned int this_mpi =
@@ -698,9 +698,10 @@ namespace dd_stokes
     //     {
     //       std::cout << "\ninterface_dofs[side].size() = " << interface_dofs[side].size() << std::endl;
     //       for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
-    //         std::cout << "\ninterface_dofs[" << side << "][" << i << "] = " << interface_dofs[side][i] << std::endl;   
-    //       for (unsigned int i = 0; i < interface_dofs_total.size(); ++ i)
-    //         std::cout << "\ninterface_dofs_total[" << i << "] = " << interface_dofs_total[i] << std::endl;    
+    //         std::cout << "\ninterface_dofs[" << side << "][" << i << "] = " << interface_dofs[side][i];   
+    //       std::cout << std::endl;
+    //       // for (unsigned int i = 0; i < interface_dofs_total.size(); ++ i)
+    //       //   std::cout << "\ninterface_dofs_total[" << i << "] = " << interface_dofs_total[i] << std::endl;    
     //     }
   }
 
@@ -907,7 +908,9 @@ namespace dd_stokes
 
   template <int dim>
   void
-  MixedStokesProblemDD<dim>::print_interface_matrix(unsigned int &cycle)
+  MixedStokesProblemDD<dim>::print_interface_matrix(Projector::Projector<dim> P_coarse2fine,
+                                                    Projector::Projector<dim> P_fine2coarse,
+                                                    unsigned int &cycle)
   {
     const unsigned int this_mpi =
       Utilities::MPI::this_mpi_process(mpi_communicator);
@@ -1220,6 +1223,9 @@ namespace dd_stokes
     std::ofstream file_residual_total;
     std::ofstream file_residual_total_mortar;
 
+    Projector::Projector<dim> P_coarse2fine(false);
+    Projector::Projector<dim> P_fine2coarse(false);
+
     //for plotting data storage
     std::vector<std::vector<double>> plot(n_faces_per_cell);
     std::vector<std::vector<double>> plot_residual(n_faces_per_cell);
@@ -1264,7 +1270,7 @@ namespace dd_stokes
         }
 
     if (print_interface_matrix_flag)
-      print_interface_matrix(cycle); // important to keep it after solve_bar() and after initializing interface_fe_function
+      print_interface_matrix(P_coarse2fine, P_fine2coarse, cycle); // important to keep it after solve_bar() and after initializing interface_fe_function
 
     // Extra for projections from mortar to fine grid and RHS assembly
     Quadrature<dim - 1> quad;
@@ -1791,6 +1797,9 @@ namespace dd_stokes
     std::ofstream file_residual_total;
     std::ofstream file_residual_total_mortar;
 
+    Projector::Projector<dim> P_coarse2fine(false);
+    Projector::Projector<dim> P_fine2coarse(false);
+
     //for plotting data storage
     std::vector<std::vector<double>> plot(n_faces_per_cell);
     std::vector<std::vector<double>> plot_residual(n_faces_per_cell);
@@ -1837,7 +1846,7 @@ namespace dd_stokes
         }
 
     if (print_interface_matrix_flag)
-      print_interface_matrix(cycle); // important to keep it after solve_bar() and initializing interface_fe_function
+      print_interface_matrix(P_coarse2fine, P_fine2coarse, cycle); // important to keep it after solve_bar() and initializing interface_fe_function
 
     // Extra for projections from mortar to fine grid and RHS assembly
     Quadrature<dim - 1> quad;
@@ -2643,8 +2652,10 @@ namespace dd_stokes
 
             // Dimensions of the domain (unit hypercube)
             std::vector<double> subdomain_dimensions(dim);
-            for (unsigned int d = 0; d < dim; ++d)
+            for (unsigned int d = 1; d < dim; ++d)
               subdomain_dimensions[d] = 1.0 / double(n_domains[d]);
+
+            subdomain_dimensions[0] = 2.0 / double(n_domains[0]);
 
             get_subdomain_coordinates<dim>(
               this_mpi, n_domains, subdomain_dimensions, p1, p2);
@@ -2742,12 +2753,12 @@ namespace dd_stokes
             interface_dofs.clear();
             interface_fe_function.clear();
             interface_fe_function_mortar.clear();
-            if (mortar_flag)
-              {
-                triangulation_mortar.clear();
-                P_fine2coarse.reset();
-                P_coarse2fine.reset();
-              }
+            // if (mortar_flag)
+            //   {
+            //     triangulation_mortar.clear();
+            //     P_fine2coarse.reset();
+            //     P_coarse2fine.reset();
+            //   }
             dof_handler_mortar.clear();
           }
         else
@@ -2804,12 +2815,12 @@ namespace dd_stokes
             interface_dofs_fe.clear();
             interface_fe_function.clear();
             interface_fe_function_mortar.clear();
-            if (mortar_flag)
-              {
-                triangulation_mortar.clear();
-                P_fine2coarse.reset();
-                P_coarse2fine.reset();
-              }
+            // if (mortar_flag)
+            //   {
+            //     triangulation_mortar.clear();
+            //     P_fine2coarse.reset();
+            //     P_coarse2fine.reset();
+            //   }
             dof_handler_mortar.clear();
           }
       }
