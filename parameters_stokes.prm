@@ -5,7 +5,7 @@
 
 set dim              = 2
 set degree           = 1
-set refinements      = 5
+set refinements      = 6
 set quad_degree      = 11
 set initial_grid_2D  = 2, 2
 set initial_grid_3D  = 1, 1, 1
@@ -18,8 +18,8 @@ set initial_grid_3D  = 1, 1, 1
 # 2 sides Dirichlet
 
 subsection External Boundary Conditions
-	set essential_dirichlet = no
-	set boundary_2D         = D, D, D, N
+	set essential_dirichlet = yes
+	set boundary_2D         = N, D, N, D
 	set boundary_3D         = N, D, D, D, D, D
 end
 

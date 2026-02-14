@@ -20,6 +20,7 @@
 
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_raviart_thomas.h>
+#include <deal.II/fe/fe_bdm.h>
 #include <deal.II/fe/fe_system.h>
 #include <deal.II/fe/fe_values.h>
 #include <deal.II/fe/fe_nothing.h>
@@ -57,7 +58,7 @@
 #include <algorithm>
 #include <cmath>
 // Utilities, data, etc.
-#include "../inc/data_2.h"
+#include "../inc/data.h"
 #include "../inc/stokes_mfedd.h"
 #include "../inc/utilities.h"
 #include "../inc/interface.h"
@@ -1188,6 +1189,108 @@ namespace dd_stokes
 
   }
 
+  // compute inner product in mortar space
+  // <lambda, mu> on a particular face
+  template <int dim>
+  double
+  MixedStokesProblemDD<dim>::inner_product_mortar(std::vector<std::vector<double>> &v_1,
+                                                  std::vector<std::vector<double>> &v_2,
+                                                  FEFaceValues<dim> &fe_face_values_mortar)
+  {
+    const unsigned int n_faces_per_cell = GeometryInfo<dim>::faces_per_cell;
+    double inner_product = 0.0;
+
+    const unsigned int n_face_q_points = fe_face_values_mortar.get_quadrature().size();
+    unsigned int dofs_per_cell;
+    if (mortar_flag)
+      dofs_per_cell   = fe_mortar.dofs_per_cell;
+    else
+      dofs_per_cell   = fe.dofs_per_cell;
+
+    std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+    std::vector<Tensor<1, dim>> phi_u(dofs_per_cell, Tensor<1, dim>());
+
+    // std::cout << "solution_bar_mortar: blocks=" << solution_bar_mortar.n_blocks()
+    //           << " size=" << solution_bar_mortar.size() << "\n";
+
+    // std::cout << std::endl;
+
+    BlockVector<double> vec_1;
+    BlockVector<double> vec_2;
+    if (mortar_flag)
+    {
+      vec_1.reinit(solution_bar_mortar);
+      vec_2.reinit(solution_bar_mortar);
+    }
+    else
+    {
+      vec_1.reinit(solution_bar_stokes);
+      vec_2.reinit(solution_bar_stokes);
+    }
+    vec_1 = 0;
+    vec_2 = 0;
+    for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+      if (neighbors[side] >= 0)
+      {
+        for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
+        {
+          vec_1(interface_dofs[side][i]) = v_1[side][i];
+          vec_2(interface_dofs[side][i]) = v_2[side][i];
+        }
+      }
+
+    //first index for dim components, 0, 1: vel, 2: pressure
+    //second for value at each quad point
+    std::vector<Tensor<1, dim>> interface_values_v1_flux(n_face_q_points, Tensor<1, dim>());
+    std::vector<Tensor<1, dim>> interface_values_v2_flux(n_face_q_points, Tensor<1, dim>());
+
+    const FEValuesExtractors::Vector velocity (0);
+
+    unsigned int side = 0;
+
+    typename DoFHandler<dim>::active_cell_iterator cell, endc;
+    
+    if (mortar_flag)
+      {
+        cell = dof_handler_mortar.begin_active(), endc = dof_handler_mortar.end();
+      }
+    else
+      {
+        //first for fe/fine grid
+        cell = dof_handler.begin_active(), endc = dof_handler.end();
+      }
+
+    for (; cell != endc; ++cell)
+    {
+      cell->get_dof_indices(local_dof_indices);
+      for (unsigned int face_n = 0;face_n < n_faces_per_cell;++face_n)
+        if (cell->at_boundary(face_n) &&
+          (cell->face(face_n)->boundary_id() != 0) && (cell->face(face_n)->boundary_id() !=7) )
+        {
+          //Need to reorder faces deal.ii iterators 
+          //use a different ordering from freefem, 
+          //they are ordered component wise 
+          fe_face_values_mortar.reinit(cell, face_n);
+          side = cell->face(face_n)->boundary_id() - 1;
+          
+          fe_face_values_mortar[velocity].get_function_values(
+            vec_1, interface_values_v1_flux);
+          fe_face_values_mortar[velocity].get_function_values(
+            vec_2, interface_values_v2_flux);                                 
+          
+          for (unsigned int q_point = 0; q_point < n_face_q_points; ++q_point)
+          {
+            inner_product += 
+              interface_values_v1_flux[q_point] * (interface_values_v2_flux[q_point]) // (u1 * u2)
+              * fe_face_values_mortar.JxW(q_point);    // dx
+          }
+            
+        }
+    }
+    
+    return inner_product;
+  }
+
   //local GMRES function.
   template <int dim>
   void
@@ -1283,6 +1386,11 @@ namespace dd_stokes
                                     update_values | update_normal_vectors |
                                       update_quadrature_points |
                                       update_JxW_values);
+    FEFaceValues<dim> fe_face_values_mortar(fe_mortar,
+                                            quad,
+                                            update_values | update_normal_vectors |
+                                              update_quadrature_points |
+                                              update_JxW_values);
 
     if (mortar_flag == 1)
     { 
@@ -1373,15 +1481,19 @@ namespace dd_stokes
             {
               r[side][i] += r_receive_buffer[i];
             }
-          r_norm_side[side] = vect_norm(r[side]);
+          // r_norm_side[side] = vect_norm(r[side]);
         }
 
-
-    //Calculating r-norm(same as b-norm)-----
+    
+    // //Calculating r-norm(same as b-norm)-----
     double r_norm =0;
-    for(unsigned int side=0; side<n_faces_per_cell;++side)
-      if (neighbors[side] >= 0)
-        r_norm+=r_norm_side[side]*r_norm_side[side];
+    if (mortar_flag)
+      r_norm = inner_product_mortar(r, r, fe_face_values_mortar);
+    else
+      r_norm = inner_product_mortar(r, r, fe_face_values);
+    // for(unsigned int side=0; side=n_faces_per_cell;++side)
+    //   if (neighbors[side] >= 0)
+    //     r_norm+=r_norm_side[side]*r_norm_side[side];
     double r_norm_buffer =0;
     MPI_Allreduce(&r_norm,
         &r_norm_buffer,
@@ -1519,15 +1631,26 @@ namespace dd_stokes
 
                 }
 
+              std::vector<std::vector<double>> Q_tmp(n_faces_per_cell);
+              for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+                if (neighbors[side] >= 0)
+                  Q_tmp[side].resize(interface_dofs[side].size(), 0.0);
+
+
               q[side].resize(Ap[side].size(),0);
               assert(Ap[side].size()==Q_side[side][k_counter].size());
               q[side] = Ap[side];
               for(unsigned int i=0; i<=k_counter; ++i)
               {
-                        for(unsigned int j=0; j<q[side].size();++j){
-                          h[i]+=q[side][j]*Q_side[side][i][j];
-                          }
-
+                for(unsigned int j=0; j<q[side].size();++j)
+                {
+                  Q_tmp[side][j]=Q_side[side][i][j];
+                  // h[i]+=q[side][j]*Q_side[side][i][j];
+                }
+                if (mortar_flag)
+                  h[i] = inner_product_mortar(Q_tmp, q, fe_face_values_mortar);
+                else
+                  h[i] = inner_product_mortar(Q_tmp, q, fe_face_values);
               }
 
 
@@ -1556,9 +1679,13 @@ namespace dd_stokes
             double h_dummy = 0;
 
             //calculating h(k+1)=norm(q) as summation over side,subdomains norm_squared(q[side])
-            for (unsigned int side = 0; side < n_faces_per_cell; ++side)
-                            if (neighbors[side] >= 0)
-                              h_dummy+=vect_norm(q[side])*vect_norm(q[side]);
+            // for (unsigned int side = 0; side < n_faces_per_cell; ++side)
+            //                 if (neighbors[side] >= 0)
+            //                   h_dummy+=vect_norm(q[side])*vect_norm(q[side]);
+            if (mortar_flag)
+              h_dummy = inner_product_mortar(q, q, fe_face_values_mortar);
+            else
+              h_dummy = inner_product_mortar(q, q, fe_face_values);
             double h_k_buffer=0;
 
             MPI_Allreduce(&h_dummy,
@@ -2684,8 +2811,10 @@ namespace dd_stokes
 
             // Dimensions of the domain (unit hypercube)
             std::vector<double> subdomain_dimensions(dim);
-            for (unsigned int d = 0; d < dim; ++d)
+            for (unsigned int d = 1; d < dim; ++d)
               subdomain_dimensions[d] = 1.0 / double(n_domains[d]);
+            
+            subdomain_dimensions[0] = 2.0 / double(n_domains[0]);
 
             get_subdomain_coordinates<dim>(
               this_mpi, n_domains, subdomain_dimensions, p1, p2);
@@ -2746,6 +2875,7 @@ namespace dd_stokes
             // output_interface_results(cycle);
 
             triangulation.clear();
+            // triangulation_mortar.clear();
             dof_handler.clear();
             // convergence_table.clear();
             faces_on_interface.clear();
@@ -2753,12 +2883,12 @@ namespace dd_stokes
             interface_dofs.clear();
             interface_fe_function.clear();
             interface_fe_function_mortar.clear();
-            // if (mortar_flag)
-            //   {
-            //     triangulation_mortar.clear();
-            //     P_fine2coarse.reset();
-            //     P_coarse2fine.reset();
-            //   }
+            if (mortar_flag)
+              {
+                triangulation_mortar.clear();
+                // P_fine2coarse.reset();
+                // P_coarse2fine.reset();
+              }
             dof_handler_mortar.clear();
           }
         else
@@ -2815,12 +2945,12 @@ namespace dd_stokes
             interface_dofs_fe.clear();
             interface_fe_function.clear();
             interface_fe_function_mortar.clear();
-            // if (mortar_flag)
-            //   {
-            //     triangulation_mortar.clear();
-            //     P_fine2coarse.reset();
-            //     P_coarse2fine.reset();
-            //   }
+            if (mortar_flag)
+              {
+                triangulation_mortar.clear();
+                // P_fine2coarse.reset();
+                // P_coarse2fine.reset();
+              }
             dof_handler_mortar.clear();
           }
       }

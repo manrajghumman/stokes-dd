@@ -138,6 +138,11 @@ namespace dd_stokes
 
     double vect_norm(std::vector<double> v);
 
+    double
+    inner_product_mortar(std::vector<std::vector<double>> &v_1,
+                          std::vector<std::vector<double>> &v_2,
+                          FEFaceValues<dim> &fe_face_values_mortar);
+
 
     unsigned int       gmres_iteration;
     double             residual;
